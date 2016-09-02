@@ -15,10 +15,19 @@ int test1()
 	l.append("Third");
 	l.append("Fifth");
 	l.append("Aaabcbdbab");
-	list_puts(cout, l);
-	cout << "-------------------------" << endl;
+	
 	mylist<string> init_l = l;
+	init_l[1] = "New_string";
+
+	mylist<string> eq_l = l;
+	eq_l[-1] = "last_string";
+
+	list_puts(cout, l);
+	cout << "------------copy-------------" << endl;
 	list_puts(cout, init_l);
+	cout << "------------equal-------------" << endl;
+	list_puts(cout, eq_l);
+
 	return 0;
 }
 

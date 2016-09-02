@@ -29,7 +29,7 @@ public:
 	int pop(T &dat);
 	int count() { return m_count; }
 
-	T &operator=(const mylist &old_list);
+	const mylist<T> &operator=(const mylist &old_list);
 	T &operator[](int index);
 	const T &operator[](int index) const;
 	friend std::ostream &list_puts <> (std::ostream &os, const mylist<T> &l);
@@ -65,6 +65,7 @@ int mylist<T>::append(const T &dat)
 	
 	return 0;
 }
+
 
 template <class T>
 mylist<T>::~mylist()
@@ -110,6 +111,87 @@ mylist<T>::mylist(const mylist<T> &old_list)
 		}
 		pstSrc = pstSrc->pstNext;
 	}while (pstSrc != &old_list.m_stHead);
+}
+
+
+template <class T>
+const mylist<T> &mylist<T>::operator=(const mylist<T> &old_list)
+{
+	if (this == &old_list)
+	{
+		return *this;
+	}
+
+	m_count = 0;
+	m_stHead.pstNext = nullptr;
+	m_stHead.pstPrev = nullptr;
+	if (nullptr == old_list.m_stHead.pstNext)
+	{
+		return *this;
+	}
+
+	const Node_S *pstSrc;
+	pstSrc = &old_list.m_stHead;
+	do
+	{
+		if (0 != append(pstSrc->data))
+		{
+			break;
+		}
+		pstSrc = pstSrc->pstNext;
+	} while (pstSrc != &old_list.m_stHead);
+
+	return *this;
+}
+
+
+template <typename T>
+T & mylist<T>::operator[](int index)
+{
+	int iPos, iReal;
+	iReal = index >= 0 ? index : index + m_count;
+	if (iReal < 0)
+	{
+		iReal = 0;
+	}
+	if (iReal >= m_count)
+	{
+		iReal = m_count - 1;
+	}
+
+	Node_S *pstCurr = &m_stHead;
+	
+	for (iPos = 0; iPos < iReal; iPos++)
+	{
+		pstCurr = pstCurr->pstNext;
+	}
+
+	return pstCurr->data;	
+}
+
+
+template <typename T>
+const T &mylist<T>::operator[](int index)
+{
+	int iPos, iReal;
+	iReal = index >= 0 ? index : index + m_count;
+	if (iReal < 0)
+	{
+		iReal = 0;
+	}
+	if (iReal >= m_count)
+	{
+		iReal = m_count - 1;
+	}
+
+	const Node_S *pstCurr = &m_stHead;
+
+	for (iPos = 0; iPos < iReal; iPos++)
+	{
+		pstCurr = pstCurr->pstNext;
+	}
+
+	return pstCurr->data;
 }
 
 

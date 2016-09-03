@@ -11,15 +11,15 @@ int test1()
 	mylist<string> l;
 	cout << "Hello, world!" << endl;
 	l.append("First");	
-	l.append("Msecond");
-	l.append("Third");
-	l.append("Fifth");
+	l << "Msecond" << "Third";
 	l.append("Aaabcbdbab");
 	
 	mylist<string> init_l = l;
 	init_l[1] = "New_string";
 
-	mylist<string> eq_l = l;
+	mylist<string> eq_l;
+	eq_l = init_l;
+	eq_l = l;	
 	eq_l[-1] = "last_string";
 
 	list_puts(cout, l);

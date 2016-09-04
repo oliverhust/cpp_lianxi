@@ -6,7 +6,7 @@
 using namespace std;
 
 
-int test1()
+static int test_basic()
 {
 	mylist<string> l;
 	cout << "Hello, world!" << endl;
@@ -31,7 +31,8 @@ int test1()
 	return 0;
 }
 
-void test_str()
+
+static void test_str()
 {
 	string str = "Haha";
 	cout << "str = " << str << endl;
@@ -39,8 +40,9 @@ void test_str()
 	cout << "str = " << str << endl;
 }
 
-int main()
+
+int test_mylist()
 {
-	test1();
+	test_basic();
 	return 0;
 }

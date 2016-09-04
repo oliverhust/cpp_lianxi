@@ -235,5 +235,6 @@ std::ostream &list_puts(std::ostream &os, const mylist<T> &l)
 
 
 
+int test_mylist();
 
 #endif

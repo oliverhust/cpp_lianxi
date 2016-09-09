@@ -124,7 +124,7 @@ class FilesProc
 {
 
 public:
-	static void FindFiles(const wchar_t *pathName, vector<wstring> &files)
+	static errno_t ls(const wchar_t *pathName, vector<wstring> &files)
 	{
 		WIN32_FIND_DATA FindFileData;
 		HANDLE hFind = INVALID_HANDLE_VALUE;
@@ -136,21 +136,22 @@ public:
 		hFind = FindFirstFile(PathBuffer, &FindFileData);
 		if (INVALID_HANDLE_VALUE == hFind)      // 如果出现了某种异常就直接抛出便可
 		{
-			char buffer[56];
-			sprintf_s(buffer, "Invalid File Handle.Error is %u\n", GetLastError());
-			throw std::exception(buffer);
+			return 1;
 		}
-		else // 然后再接着查找下去
+		
+		// 然后再接着查找下去
+		//files.push_back(wstring(FindFileData.cFileName)); '.'
+		while (0 != FindNextFile(hFind, &FindFileData))
 		{
-			files.push_back(wstring(FindFileData.cFileName));
-
-			while (0 != FindNextFile(hFind, &FindFileData))
+			wstring ws_tmp = wstring(FindFileData.cFileName);
+			if (ws_tmp != L"." && ws_tmp != L"..")
 			{
-				files.push_back(wstring(FindFileData.cFileName));
-			}
-
-			FindClose(hFind);
+				files.push_back(ws_tmp);
+			}					
 		}
+
+		FindClose(hFind);
+		return 0;
 	}
 
 
@@ -162,7 +163,7 @@ int test_file_list()
 {
 	vector<wstring> vwsFiles;
 
-	FilesProc::FindFiles(L"E:\\X 发行资料", vwsFiles);
+	FilesProc::ls(L"E:\\X 发行资料", vwsFiles);
 
 	return 0;
 }

@@ -120,11 +120,11 @@ public:
 };
 
 
-class FilesProc
+class FileSys
 {
-
-public:
-	static errno_t ls(const wchar_t *pathName, vector<wstring> &files)
+private:
+	//获取某路径下的目录名和文件名(结果添加到vwsDirs、vwsFiles后面)
+	static errno_t _ls(const wchar_t *pathName, vector<wstring> &vwsDirs, vector<wstring> &vwsFiles)
 	{
 		WIN32_FIND_DATA FindFileData;
 		HANDLE hFind = INVALID_HANDLE_VALUE;
@@ -134,20 +134,30 @@ public:
 		wcscat_s(PathBuffer, _MAX_PATH, L"\\*");
 
 		hFind = FindFirstFile(PathBuffer, &FindFileData);
-		if (INVALID_HANDLE_VALUE == hFind)      // 如果出现了某种异常就直接抛出便可
+		if (INVALID_HANDLE_VALUE == hFind)      // 比如路径不存在或无法访问
 		{
 			return 1;
 		}
-		
+
 		// 然后再接着查找下去
 		//files.push_back(wstring(FindFileData.cFileName)); '.'
 		while (0 != FindNextFile(hFind, &FindFileData))
 		{
 			wstring ws_tmp = wstring(FindFileData.cFileName);
-			if (ws_tmp != L"." && ws_tmp != L"..")
+			if (ws_tmp == L"." || ws_tmp == L"..")
 			{
-				files.push_back(ws_tmp);
-			}					
+				continue;
+			}
+
+			wstring full_path = wstring(pathName) + L"\\" + ws_tmp;
+			if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				vwsDirs.push_back(full_path);
+			}
+			else
+			{
+				vwsFiles.push_back(full_path);
+			}
 		}
 
 		FindClose(hFind);
@@ -155,19 +165,65 @@ public:
 	}
 
 
+	//获取某路径下的所有目录和文件夹(结果添加到vwsDirs、vwsFiles后面(这两个入参可有原有的数据))
+	static errno_t _find(const wchar_t *pathName, vector<wstring> &vwsDirs, vector<wstring> &vwsFiles)
+	{
+		vector<wstring> vwsCurrDirs;
+		int iRet = _ls(pathName, vwsCurrDirs, vwsFiles);
+		vwsDirs.insert(vwsDirs.end(), vwsCurrDirs.begin(), vwsCurrDirs.end());
+		if (0 != iRet)
+		{
+			return iRet;
+		}
+
+		for (auto it = cbegin(vwsCurrDirs); it != cend(vwsCurrDirs); ++it)
+		{
+			(void)_find((*it).c_str(), vwsDirs, vwsFiles);
+		}
+
+		return iRet;
+	}
+
+
+public:
+	//获取某路径下的目录名和文件名
+	static errno_t ls(const wchar_t *pathName, vector<wstring> &vwsDirs, vector<wstring> &vwsFiles)
+	{
+		vwsDirs.clear();
+		vwsFiles.clear();		
+		return _ls(pathName, vwsDirs, vwsFiles);
+	}
+
+	//获取某路径下的所有目录和文件夹(结果添加到vwsDirs、vwsFiles后面)
+	static errno_t find(const wchar_t *pathName, vector<wstring> &vwsDirs, vector<wstring> &vwsFiles)
+	{
+		vwsDirs.clear();
+		vwsFiles.clear();
+		return _find(pathName, vwsDirs, vwsFiles);
+	}
+
 };
+
+
+
+
 
 
 
 int test_file_list()
 {
-	vector<wstring> vwsFiles;
+	vector<wstring> vwsFiles, vwsDirs;
+	wchar_t *path;
+	int ret;
 
-	FilesProc::ls(L"E:\\X 发行资料", vwsFiles);
+	path = L"E:\\X 发行资料";
+	ret = FileSys::ls(path, vwsDirs, vwsFiles);
+
+	path = path;
+	ret = FileSys::find(path, vwsDirs, vwsFiles);
 
 	return 0;
 }
-
 
 
 int test_text_replace()

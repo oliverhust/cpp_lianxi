@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <windows.h>
@@ -206,9 +207,32 @@ public:
 
 
 
+int test_read_wfile()
+{
+	wifstream f_read;
+	wchar_t *wstr_buf = (wchar_t *)malloc(10 * 1024 * 1024 * sizeof(wchar_t));
+	f_read.open(L"E:\\X 发行资料\\读取测试.txt");
+	f_read.read(wstr_buf, 10 * 1024 * 1024);
 
+	f_read.close();
+	delete wstr_buf;
+	return 0;
+}
 
+int test_read_wfile2()
+{
+	wchar_t linex[1024];
+	FILE* f1;
+	f1 = _wfopen(L"E:\\X 发行资料\\读取测试.txt", L"rt+,ccs=UNICODE");
+	wcout.imbue(locale("chs"));
+	while (!feof(f1)) {
+		fgetws(linex, 1024, f1);
+		wcout << linex << endl;
+	}
+	fclose(f1);
 
+	return 0;
+}
 
 int test_file_list()
 {
@@ -221,7 +245,7 @@ int test_file_list()
 
 	path = path;
 	ret = FileSys::find(path, vwsDirs, vwsFiles);
-
+	
 	return 0;
 }
 
@@ -243,7 +267,7 @@ int test_text_replace()
 
 int main()
 {
-	test_file_list();
+	test_read_wfile2();
 	return 0;
 }
 

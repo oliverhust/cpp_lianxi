@@ -1,7 +1,10 @@
 #include <iostream>
+#include <cstdio>
 #include <fstream>
 #include <vector>
 #include <string>
+#include <locale>
+#include <codecvt>
 #include <windows.h>
 //#include "tab_replace.hpp"
 
@@ -41,7 +44,7 @@ public:
 		return swOutText;
 	}
 
-//private:
+private:
 	int _spilt(const wstring &szInText, vector<wstring> &vszOutText) const
 	{
 		const wchar_t *p_pos, *pcSegment;
@@ -206,33 +209,140 @@ public:
 };
 
 
+class FileRW
+{
+private:
+	string m_FileName;
+
+public:
+	FileRW(const char *pcFileName) :m_FileName(pcFileName) {}
+
+	int readall(string &szOut) const
+	{
+		ifstream ifs;
+		ifs.open(m_FileName.c_str(), ios_base::in);
+		if (!ifs)
+		{
+			return -1;
+		}
+
+		ifs.seekg(0, ios_base::end);
+		int txt_len = int(ifs.tellg());
+		ifs.seekg(0, ios_base::beg);
+
+		char *buf = new char[txt_len + 1];
+		ifs.read(buf, txt_len);
+		int count = int(ifs.gcount());
+		buf[count] = '\0';
+		ifs.close();
+
+		szOut = buf;
+		delete[] buf;
+		return 0;
+	}
+
+	int try_decode(const string &szInTxt, wstring &wsOutTxt)
+	{
+		
+		return 0;
+	}
+
+	int readall(wstring &wsOut) const
+	{
+		string szTxt;
+		int iRet;
+
+		iRet = readall(szTxt);
+		if (0 != iRet)
+		{
+			return iRet;
+		}
+
+
+		return iRet;
+	}
+
+
+	int writeall(const string &szData) const
+	{
+		ofstream ofs;
+		ofs.open(m_FileName, ios_base::out | ios_base::trunc);
+		if (!ofs)
+		{
+			return -1;
+		}
+
+		ofs << szData;
+		int iRet = 0;
+		if (!ofs)
+		{
+			iRet = -1;
+		}
+
+		ofs.close();
+		return iRet;
+	}
+};
+
+
+int s2ws(const std::string& src, wstring &dst)
+{
+	std::locale sys_locale("");
+
+	const char* data_from = src.c_str();
+	const char* data_from_end = src.c_str() + src.size();
+	const char* data_from_next = 0;
+
+	wchar_t* data_to = new wchar_t[src.size() + 1];
+	wchar_t* data_to_end = data_to + src.size() + 1;
+	wchar_t* data_to_next = 0;
+
+	wmemset(data_to, 0, src.size() + 1);
+
+	typedef std::codecvt<wchar_t, char, mbstate_t> convert_facet;
+	mbstate_t in_state = 0;
+	auto result = std::use_facet<convert_facet>(sys_locale).in(
+		in_state, data_from, data_from_end, data_from_next,
+		data_to, data_to_end, data_to_next);
+	if (result != convert_facet::ok)
+	{
+		dst = L"";
+		delete[] data_to;
+		return 1;
+	}
+
+	dst = data_to;
+	delete[] data_to;
+	return 0;
+}
+
+
+wstring s2ws(const std::string& src)
+{
+	wstring wsRet;
+	s2ws(src, wsRet);
+	return wsRet;
+}
+
 
 int test_read_wfile()
 {
-	wifstream f_read;
-	wchar_t *wstr_buf = (wchar_t *)malloc(10 * 1024 * 1024 * sizeof(wchar_t));
-	f_read.open(L"E:\\X 发行资料\\读取测试.txt");
-	f_read.read(wstr_buf, 10 * 1024 * 1024);
+	FileRW f("E:\\X 发行资料\\读取测试.txt");
+	string txt;
 
-	f_read.close();
-	delete wstr_buf;
-	return 0;
-}
+	f.readall(txt);
+	cout << txt << endl;
+	cout << "--------------------------------------" << endl;
+	f.writeall(txt + "####\n");
 
-int test_read_wfile2()
-{
-	wchar_t linex[1024];
-	FILE* f1;
-	f1 = _wfopen(L"E:\\X 发行资料\\读取测试.txt", L"rt+,ccs=UNICODE");
 	wcout.imbue(locale("chs"));
-	while (!feof(f1)) {
-		fgetws(linex, 1024, f1);
-		wcout << linex << endl;
-	}
-	fclose(f1);
+	wstring wsTmp;
+	s2ws(txt, wsTmp);
+	wcout << wsTmp << endl;
 
 	return 0;
 }
+
 
 int test_file_list()
 {
@@ -267,7 +377,7 @@ int test_text_replace()
 
 int main()
 {
-	test_read_wfile2();
+	test_read_wfile();
 	return 0;
 }
 

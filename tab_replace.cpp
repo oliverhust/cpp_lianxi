@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -209,6 +210,69 @@ public:
 };
 
 
+class Chinese
+{
+public:
+	enum ENCODING
+	{
+		INVALID,
+		UTF_8,
+		GB18030,				
+		ENCODE_MAX
+	};
+
+	static ENCODING decode(const char *pcSrc, wchar_t *pwWcs, int maxCount, ENCODING enEncode = INVALID);
+
+private:
+	static const char *apcStrEncoding[];
+
+};
+
+
+const char *Chinese::apcStrEncoding[ENCODE_MAX] =
+{
+	"",
+	"zh_CN.utf8",	
+	"zh_CN.gb18030",	
+};
+
+
+Chinese::ENCODING Chinese::decode(const char *pcSrc, wchar_t *pwWcs, int maxCount, Chinese::ENCODING enEncode)
+{		
+	if (INVALID < enEncode && enEncode < ENCODE_MAX)
+	{
+		setlocale(LC_ALL, apcStrEncoding[enEncode]);
+		if (-1 != mbstowcs(pwWcs, pcSrc, maxCount))
+		{
+			return enEncode;
+		}
+		pwWcs[0] = 0;
+		return INVALID;
+	}
+
+	int enI;
+	for (enI = INVALID + 1; enI < ENCODE_MAX; enI++)
+	{
+		setlocale(LC_ALL, apcStrEncoding[enI]);
+		if (-1 != mbstowcs(pwWcs, pcSrc, maxCount))
+		{
+			break;
+		}
+	}
+
+	if (ENCODE_MAX == enI)
+	{
+		pwWcs[0] = 0;
+	}
+	
+	return (ENCODING)enI;
+}
+
+
+
+
+
+
 class FileRW
 {
 private:
@@ -241,11 +305,6 @@ public:
 		return 0;
 	}
 
-	int try_decode(const string &szInTxt, wstring &wsOutTxt)
-	{
-		
-		return 0;
-	}
 
 	int readall(wstring &wsOut) const
 	{
@@ -325,6 +384,35 @@ wstring s2ws(const std::string& src)
 }
 
 
+int test_decode()
+{
+	//FileRW f("E:\\X 发行资料\\读取测试.txt");
+	FileRW f("E:\\X 发行资料\\读取测试_UTF8.txt");
+	string txt;
+
+	f.readall(txt);
+	cout << txt << endl;
+	cout << "--------------------------------------" << endl;
+
+	wcout.imbue(locale("chs"));
+	//wstring wsTmp;
+	wchar_t wsTmp[1024];
+	int encoding = Chinese::decode(txt.c_str(), wsTmp, sizeof(wsTmp) / sizeof(wchar_t));
+	if (Chinese::INVALID != encoding)
+	{
+		wcout << wsTmp << endl;
+	}
+	else
+	{
+		cout << "Decode error!" << endl;
+		return 1;
+	}	
+
+	return 0;
+
+}
+
+
 int test_read_wfile()
 {
 	FileRW f("E:\\X 发行资料\\读取测试.txt");
@@ -377,7 +465,7 @@ int test_text_replace()
 
 int main()
 {
-	test_read_wfile();
+	test_decode();
 	return 0;
 }
 

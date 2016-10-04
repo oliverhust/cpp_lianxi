@@ -67,7 +67,6 @@ private:
 			vszOutText.push_back(str_tmp);
 			iSegmentCount++;
 
-
 			p_pos += iSpiltLen;
 			pcSegment = p_pos;
 		}
@@ -210,69 +209,6 @@ public:
 };
 
 
-class Chinese
-{
-public:
-	enum ENCODING
-	{
-		INVALID,
-		UTF_8,
-		GB18030,				
-		ENCODE_MAX
-	};
-
-	static ENCODING decode(const char *pcSrc, wchar_t *pwWcs, int maxCount, ENCODING enEncode = INVALID);
-
-private:
-	static const char *apcStrEncoding[];
-
-};
-
-
-const char *Chinese::apcStrEncoding[ENCODE_MAX] =
-{
-	"",
-	"zh_CN.utf8",	
-	"zh_CN.gb18030",	
-};
-
-
-Chinese::ENCODING Chinese::decode(const char *pcSrc, wchar_t *pwWcs, int maxCount, Chinese::ENCODING enEncode)
-{		
-	if (INVALID < enEncode && enEncode < ENCODE_MAX)
-	{
-		setlocale(LC_ALL, apcStrEncoding[enEncode]);
-		if (-1 != mbstowcs(pwWcs, pcSrc, maxCount))
-		{
-			return enEncode;
-		}
-		pwWcs[0] = 0;
-		return INVALID;
-	}
-
-	int enI;
-	for (enI = INVALID + 1; enI < ENCODE_MAX; enI++)
-	{
-		setlocale(LC_ALL, apcStrEncoding[enI]);
-		if (-1 != mbstowcs(pwWcs, pcSrc, maxCount))
-		{
-			break;
-		}
-	}
-
-	if (ENCODE_MAX == enI)
-	{
-		pwWcs[0] = 0;
-	}
-	
-	return (ENCODING)enI;
-}
-
-
-
-
-
-
 class FileRW
 {
 private:
@@ -281,6 +217,7 @@ private:
 public:
 	FileRW(const char *pcFileName) :m_FileName(pcFileName) {}
 
+	/* 返回-1表示失败，成功返回字符串长度 */
 	int readall(string &szOut) const
 	{
 		ifstream ifs;
@@ -302,22 +239,32 @@ public:
 
 		szOut = buf;
 		delete[] buf;
-		return 0;
+		return count;
 	}
 
-
+	/* 返回-1表示失败，成功返回wchar_t字符串长度 */
 	int readall(wstring &wsOut) const
 	{
 		string szTxt;
 		int iRet;
 
 		iRet = readall(szTxt);
-		if (0 != iRet)
+		if (-1 == iRet)
 		{
 			return iRet;
 		}
 
+		int max_size = szTxt.length() + 1;
+		wchar_t *w_tmp = new wchar_t[max_size];
+		
+		setlocale(LC_ALL, "");
+		iRet = mbstowcs(w_tmp, szTxt.c_str(), max_size);
+		if (iRet != -1)
+		{
+			wsOut = w_tmp;
+		}
 
+		delete [] w_tmp;
 		return iRet;
 	}
 
@@ -341,53 +288,34 @@ public:
 		ofs.close();
 		return iRet;
 	}
+
+
+	int writeall(const wstring &wszData) const
+	{
+		setlocale(LC_ALL, "");
+		
+		int max_size = wszData.length() * 7;
+		char *tmp = new char[max_size];
+
+		int count = wcstombs(tmp, wszData.c_str(), max_size);
+		if (-1 == count)
+		{
+			return -1;
+		}
+
+		string szData = tmp;
+		delete[] tmp;
+
+		return writeall(szData);
+	}
+
 };
 
 
-int s2ws(const std::string& src, wstring &dst)
+int test_rw()
 {
-	std::locale sys_locale("");
-
-	const char* data_from = src.c_str();
-	const char* data_from_end = src.c_str() + src.size();
-	const char* data_from_next = 0;
-
-	wchar_t* data_to = new wchar_t[src.size() + 1];
-	wchar_t* data_to_end = data_to + src.size() + 1;
-	wchar_t* data_to_next = 0;
-
-	wmemset(data_to, 0, src.size() + 1);
-
-	typedef std::codecvt<wchar_t, char, mbstate_t> convert_facet;
-	mbstate_t in_state = 0;
-	auto result = std::use_facet<convert_facet>(sys_locale).in(
-		in_state, data_from, data_from_end, data_from_next,
-		data_to, data_to_end, data_to_next);
-	if (result != convert_facet::ok)
-	{
-		dst = L"";
-		delete[] data_to;
-		return 1;
-	}
-
-	dst = data_to;
-	delete[] data_to;
-	return 0;
-}
-
-
-wstring s2ws(const std::string& src)
-{
-	wstring wsRet;
-	s2ws(src, wsRet);
-	return wsRet;
-}
-
-
-int test_decode()
-{
-	//FileRW f("E:\\X 发行资料\\读取测试.txt");
-	FileRW f("E:\\X 发行资料\\读取测试_UTF8.txt");
+	FileRW f("E:\\X 发行资料\\读取测试.txt");
+	//FileRW f("E:\\X 发行资料\\读取测试_UTF8.txt");
 	string txt;
 
 	f.readall(txt);
@@ -395,40 +323,22 @@ int test_decode()
 	cout << "--------------------------------------" << endl;
 
 	wcout.imbue(locale("chs"));
-	//wstring wsTmp;
-	wchar_t wsTmp[1024];
-	int encoding = Chinese::decode(txt.c_str(), wsTmp, sizeof(wsTmp) / sizeof(wchar_t));
-	if (Chinese::INVALID != encoding)
+	wstring wtxt;
+	if (-1 != f.readall(wtxt))
 	{
-		wcout << wsTmp << endl;
+		wcout << wtxt << endl;
 	}
 	else
 	{
-		cout << "Decode error!" << endl;
-		return 1;
-	}	
+		wcout << L"解码失败！" << endl;
+	}
+	
+	//--------------------------------写测试-----------------------------------
+	wtxt += L"今天天气很好\n";
+	f.writeall(wtxt);
 
 	return 0;
 
-}
-
-
-int test_read_wfile()
-{
-	FileRW f("E:\\X 发行资料\\读取测试.txt");
-	string txt;
-
-	f.readall(txt);
-	cout << txt << endl;
-	cout << "--------------------------------------" << endl;
-	f.writeall(txt + "####\n");
-
-	wcout.imbue(locale("chs"));
-	wstring wsTmp;
-	s2ws(txt, wsTmp);
-	wcout << wsTmp << endl;
-
-	return 0;
 }
 
 
@@ -463,10 +373,157 @@ int test_text_replace()
 }
 
 
+string ws2s(const wstring &wstr)
+{
+	string strRet;
+	
+	setlocale(LC_ALL, "");
+	int max_size = wstr.length() * 7;
+	char *tmp = new char[max_size];
+	if (-1 != wcstombs(tmp, wstr.c_str(), max_size))
+	{
+		strRet = tmp;
+	}
+	else
+	{
+		strRet = "";
+	}
+	
+	delete[] tmp;
+	return strRet;
+}
+
+
+wstring user_input()
+{
+	wcout << L"一个把文件夹里面所有*.c/*.cpp/*.h/*.hpp文件的Tab转为空格的工具" << endl;
+	wcout << L"请输入文件夹路径：" << endl;
+
+	string path;
+	wstring ws;
+	getline(cin, path);
+	if (!cin)
+	{
+		ws = L"";
+		wcout << L"输入有误！" << endl;
+		return ws;
+	}
+
+	int max_count = path.length() + 1;
+	wchar_t *w_tmp = new wchar_t[max_count];
+	setlocale(LC_ALL, "");
+	if (-1 == mbstowcs(w_tmp, path.c_str(), max_count))
+	{		
+		ws = L"";
+		wcout << L"文件路径解码失败！" << endl;
+		delete[] w_tmp;
+		return ws;
+	}
+	ws = w_tmp;
+	delete[] w_tmp;
+
+	return ws;
+}
+
+
+bool wstr_endwith(const wstring &wstr, const wchar_t *pcEnd)
+{
+	int len = wstr.length();
+	int end_len = wcslen(pcEnd);
+
+	if (len < end_len)
+	{
+		return false;
+	}
+
+	if (0 != wcscmp(wstr.c_str() + len - end_len, pcEnd))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+
+bool match_cfile_extension(const wstring &filename)
+{
+	wchar_t *pcExt[] = {L".c", L".h", L".cpp", L".hpp"};
+	bool bRet = false;
+
+	for (int i = 0; i < sizeof(pcExt) / sizeof(char *); i++)
+	{
+		if (wstr_endwith(filename, pcExt[i]))
+		{
+			bRet = true;
+			break;
+		}
+	}
+
+	return bRet;
+}
+
+
+int replace_one_file(const wstring &filename)
+{
+	TabReplace tabrep;
+	FileRW fs(ws2s(filename).c_str());
+	
+	wstring wsOld, wsNew;
+	if (-1 == fs.readall(wsOld))
+	{
+		return -1;
+	}
+
+	wsNew = tabrep.replace(wsOld);
+	if (-1 == fs.writeall(wsNew))
+	{
+		return -1;
+	}
+
+	return 0;
+}
+
+int run()
+{
+	wcout.imbue(locale("chs"));
+
+	wstring wpath = user_input();
+	if (wpath == L"")
+	{
+		return 1;
+	}
+
+	vector<wstring> vwsDirs;
+	vector<wstring> vwsFiles;
+	if (0 != FileSys::find(wpath.c_str(), vwsDirs, vwsFiles))
+	{
+		wcout << L"输入的路径不存在！" << endl;
+		return 1;
+	}
+
+	for (auto it = cbegin(vwsFiles); it != cend(vwsFiles); ++it)
+	{
+		wstring filename = (*it);
+		if (match_cfile_extension(filename))
+		{
+			wcout << L"Replace: " << filename << endl;
+			if (-1 == replace_one_file(filename))
+			{
+				wcout << L"FAILED REPLACE!!! : " << filename << endl;
+			}
+		}
+	}
+
+	return 0;
+}
+
+
 int main()
 {
-	test_decode();
-	return 0;
+	int iRet;
+	iRet = run();
+	cin.get();
+	return iRet;
 }
 
 

@@ -37,10 +37,9 @@
  *
  */
 #include "iSNS.h"
-#include "iSNSdb.h"
-#include "ndb.h"
 #include "iSNSNdb.h"
-#include <gdbm.h>
+#include "iSNSdb.h"
+//#include <gdbm.h>
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNSbuffer.h"
@@ -67,13 +66,13 @@ extern int isns_db_debug;
  * SoIP service Database file descriptor
  */
 //static NDB_FILE dbfp;
-static GDBM_FILE  dbfp[25];
+//static GDBM_FILE  dbfp[25];
 
 /*
  * GDBM errno
  */
 //extern ndb_error ndb_errno;
-extern int gdbm_errno;
+extern int ndbm_errno;
 
 /*
  * static common variables for gdbm fetches
@@ -94,19 +93,6 @@ ISNS_Msg_Descp *p_scn_md;
 ISNS_Msg_Descp *p_rspMd;
 
 dbStats iSNS_stats;
-
-void ISNSExceptionHdlr1(char * string);
-void ISNSExceptionHdlr2(char * string);
-void ISNSExceptionHdlr3(char * string);
-void ISNSExceptionHdlr4(char * string);
-void ISNSExceptionHdlr5(char * string);
-void ISNSExceptionHdlr6(char * string);
-void ISNSExceptionHdlr7(char * string);
-void ISNSExceptionHdlr8(char * string);
-void ISNSExceptionHdlr9(char * string);
-void ISNSExceptionHdlr10(char * string);
-void ISNSExceptionHdlr11(char * string);
-void ISNSExceptionHdlr12(char * string);
 
 /*********************************************************************
 Read Entry from Database referenced by key
@@ -356,7 +342,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
        __DEBUG (isns_db_debug &1,(Write DDS Entry:%i),key->val.dds_key.id);
        k.dptr = (char *)&key->val.dds_key.id;
        k.dsize = DDS_KEY_SIZE;
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,DDS Write failed);
        break;
@@ -365,7 +351,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
        __DEBUG (isns_db_debug &1,write dd - dds list_id:%i,entry.data.dd.dds_list.list_id);
        k.dptr = (char *)&key->val.dd_key.id;
        k.dsize = DD_KEY_SIZE;
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,DD Write failed);
        break;
@@ -373,7 +359,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
        __DEBUG (isns_db_debug &1,ISCSI write:%s,key->val.node_key.v);
        k.dptr = (char *)key->val.node_key.v;
        k.dsize = strlen(key->val.node_key.v);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,ISCSI Write failed);
        break;
@@ -385,23 +371,23 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
        __DEBUG (isns_db_debug &1,Entity write:%s,p_entity->eid.id);
        k.dptr = (char *)key->val.entity_key.id;
        k.dsize = strlen(key->val.entity_key.id);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
-         __DEBUG (isns_db_debug &1,ENTITY Write failed errno:%i,gdbm_errno);
+         __DEBUG (isns_db_debug &1,ENTITY Write failed errno:%i,ndbm_errno);
        //ISNSDisplay_Entity (&entry.data.entity,HI_DETAIL);
        break;
      }
      case PORT_NAME_KEY:
        k.dptr = (char *)key->val.port_key.v;
        k.dsize = strlen(key->val.port_key.v);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,PORT_NAME Write failed);
        break;
      case NODE_NAME_KEY:
        k.dptr = (char *)key->val.node_key.v;
        k.dsize = strlen(key->val.node_key.v);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,FC NODE_NAME Write failed);
        break;
@@ -413,7 +399,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
         inet_ntoa(*(struct in_addr *)(db_portal.ip_addr.v+12)),db_portal.ip_port);
        k.dptr = (char *)&key->val;
        k.dsize = sizeof(SOIP_Portal_Key);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,PORTAL Name Write failed);
        break;
@@ -422,7 +408,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
        __DEBUG (isns_db_debug &1,PORTAL Group Write);
        k.dptr = (char *)&key->val;
        k.dsize = sizeof(SOIP_Portal_Group_Key);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,PORTAL Group Write failed);
        break;
@@ -431,7 +417,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
      case PORTAL_IDX_KEY:
        k.dptr = (char *)&key->val;
        k.dsize = sizeof(SOIP_IDX_Key);
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,Index Write failed);
        break;
@@ -476,7 +462,7 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
           k.dsize = LIST_KEY_SIZE + strlen(key->val.list.key.node_name.v);
           break;
        }
-       rc = ndb_store_sns (key->tag, k, d, GDBM_REPLACE);
+       rc = ndb_store_sns (key->tag, k, d, NDBM_REPLACE);
        if (rc == ERROR)
          __DEBUG (isns_db_debug &1,List Write failed);
        break;
@@ -715,32 +701,18 @@ ISNSdbOpen( void )
     /*
      * Initialize database envirnoment and resources
      */
-    //dbfp = ndb_open(NULL, 0, 0, 0, ISNSExceptionHdlr);
+    if(NDB_SUCCESS != ndb_init(ISNS_LDAP_SERVER_URL,
+                               ISNS_LDAP_ADMIN_DN,
+                               ISNS_LDAP_ADMIN_PASS,
+                               ISNS_LDAP_ISNS_BASE))
+    {
+        return ERROR;
+    }
 
-    dbfp[NODE_NAME_KEY] = ndb_open("isns1.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr1);
-    dbfp[PORT_NAME_KEY] = ndb_open("isns2.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr2);
-    dbfp[ENTITY_ID_KEY] = ndb_open("isns3.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr3);
-    dbfp[PORTAL_ID_KEY] = ndb_open("isns4.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr4);
-    dbfp[DDS_ID_KEY] = ndb_open("isns5.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr5);
-    dbfp[DD_ID_KEY] = ndb_open("isns6.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr6);
-    dbfp[ISCSI_ID_KEY] = ndb_open("isns7.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr7);
-    dbfp[PORTAL_GROUP_ID_KEY] = ndb_open("isns8.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr8);
-    dbfp[ENTITY_IDX_KEY] = ndb_open("isns9.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr9);
-    dbfp[ISCSI_IDX_KEY] = ndb_open("isns10.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr10);
-    dbfp[PORTAL_IDX_KEY] = ndb_open("isns11.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr11);
-    dbfp[LIST_KEY] = ndb_open("isns12.db",1024,GDBM_WRCREAT,0666,
-         ISNSExceptionHdlr12);
+    if(NDB_SUCCESS != ndb_dir_set(SNS_DB_MAX_DIR_NUM))
+    {
+        return ERROR;
+    }
 
     ddmem=(SOIP_Dd_Member *)calloc( MAX_MEMBER_PER_DD, sizeof(SOIP_Dd_Member) );
     dlist_src=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
@@ -760,19 +732,7 @@ Closes the Database.
 void
 ISNSdbClose(void)
 {
-    //ndb_close (dbfp);
-    ndb_close(dbfp[ISCSI_ID_KEY]);
-    ndb_close(dbfp[ENTITY_ID_KEY]);
-    ndb_close(dbfp[PORTAL_ID_KEY]);
-    ndb_close(dbfp[DDS_ID_KEY]);
-    ndb_close(dbfp[DD_ID_KEY]);
-    ndb_close(dbfp[NODE_NAME_KEY]);
-    ndb_close(dbfp[PORT_NAME_KEY]);
-    ndb_close(dbfp[PORTAL_GROUP_ID_KEY]);
-    ndb_close(dbfp[ENTITY_IDX_KEY]);
-    ndb_close(dbfp[ISCSI_IDX_KEY]);
-    ndb_close(dbfp[PORTAL_IDX_KEY]);
-    ndb_close(dbfp[LIST_KEY]);
+    ndb_close();
 }
 
 
@@ -913,57 +873,6 @@ SNSdbGetNextOfKey (ISNS_DBKey * key)
 
    /* not found, return ERROR */
    return (ERROR);
-}
-
-/********************************************************************
-********************************************************************/
-void ISNSExceptionHdlr1(char * string)
-{
-    __LOG_INFO ("Database 1 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr2(char * string)
-{
-    __LOG_INFO ("Database 2 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr3(char * string)
-{
-    __LOG_INFO ("Database 3 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr4(char * string)
-{
-    __LOG_INFO ("Database 4 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr5(char * string)
-{
-    __LOG_INFO ("Database 5 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr6(char * string)
-{
-    __LOG_INFO ("Database 6 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr7(char * string)
-{
-    __LOG_INFO ("Database 7 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr8(char * string)
-{
-    __LOG_INFO ("Database 8 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr9(char * string)
-{
-    __LOG_INFO ("Database 9 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr10(char * string)
-{
-    __LOG_INFO ("Database 10 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr11(char * string)
-{
-    __LOG_INFO ("Database 11 ISNSExceptionHdlr:%s",string);
-}
-void ISNSExceptionHdlr12(char * string)
-{
-    __LOG_INFO ("Database 12 ISNSExceptionHdlr:%s",string);
 }
 
 /**************************************************

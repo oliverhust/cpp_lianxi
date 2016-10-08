@@ -1,0 +1,16 @@
+attributetype ( 12.3.6.1.4.1.7166.2.1.27 NAME 'isnsKey'
+        DESC 'ISNS Key'
+        EQUALITY octetStringMatch
+        SINGLE-VALUE
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.40)
+
+attributetype ( 12.3.6.1.4.1.7166.2.1.28 NAME 'isnsValue'
+        DESC 'ISNS Value'
+        EQUALITY octetStringMatch
+        SINGLE-VALUE
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.40)
+
+objectclass ( 12.3.6.1.4.1.7166.2.2.4 NAME 'isnsData' SUP top STRUCTURAL
+        DESC 'Describe a student'
+        MUST ( isnsKey $ isnsValue ))
+

@@ -5,13 +5,16 @@
 /* Modeled after ldap functions */
 
 #define NDB_DIR_NAME_MAX_LEN        31
+#define NDB_NON_KEY_MAX_LEN         63
 
 #define NDB_ATTR_KEY                "isnsKey"
 #define NDB_ATTR_VALUE              "isnsValue"
+#define NDB_ATTR_OBJECT             "isnsData"
 #define NDB_OBJCLASS                "objectclass"
+#define NDB_OBJ_OU                  "ou"
 
 #define NDB_SUCCESS                 0
-#define NDB_FAILED                  1
+#define NDB_FAILED                  (-1)
 
 
 typedef struct {

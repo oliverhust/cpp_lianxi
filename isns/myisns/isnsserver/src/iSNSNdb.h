@@ -11,6 +11,7 @@
 #define NDB_ATTR_VALUE              "isnsValue"
 #define NDB_ATTR_OBJECT             "isnsData"
 #define NDB_OBJCLASS                "objectclass"
+#define NDB_OU_OBJCLASS             "organizationalUnit"
 #define NDB_OBJ_OU                  "ou"
 
 #define NDB_SUCCESS                 0

@@ -66,7 +66,8 @@ OBJECTS += iSNSconfig.o
 OBJECTS += iSNSobjects.o
 OBJECTS += iSNSNdb.o
 
-OPTFLAGS ?= -g -O2
+#OPTFLAGS ?= -g -O2
+OPTFLAGS ?= -g
 WARNFLAGS ?= -Wall
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS)
 CFLAGS += -DSNS_LINUX

@@ -153,8 +153,13 @@ iSNSobjects.o : $(SRCDIR)iSNSobjects.c
 iSNSNdb.o : $(SRCDIR)iSNSNdb.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@ 
 
+ut : 
+	dos2unix $(SRCDIR)NdbTest.c
+	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c
+
 clean :
-	rm $(OBJECTS) isnsd
+	rm $(OBJECTS) isnsd || :
+	dos2unix $(SRCDIR)*.c
 
 install: install_programs install_initd
 

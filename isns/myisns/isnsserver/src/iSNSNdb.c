@@ -30,7 +30,6 @@ static short _ldap_IsDnExist(LDAP *pstLd, const char *pcDN)
     return bRet;
 }
 
-/* iModOp = LDAP_MOD_REPLACE/ LDAP_MOD_ADD*/
 static int _ldap_set_string_attr(LDAPMod **pstAttr,
                                  const char *pcAttrValue,
                                  const char *pcAttrName)
@@ -354,7 +353,7 @@ static int _ndb_store_add(const char *pcDn, datum stValue)
     stMod.mod_values = apcModVal;
     stMod.mod_op = LDAP_MOD_REPLACE;
 
-    apcObjClass[0] = NDB_ATTR_OBJECT;
+    apcObjClass[0] = NDB_OBJCLASS_DATA;
     stObjClass.mod_type = NDB_OBJCLASS;
     stObjClass.mod_values = apcObjClass;
     stMod.mod_op = LDAP_MOD_REPLACE;
@@ -525,6 +524,42 @@ void ndb_close()
     return;
 }
 
+static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcValue)
+{
+    LDAPMod *apstAttrs[NDB_ATTR_NUM_MAX + 1] = { 0 };
+    int iRet, i = 0;
+
+    if(_ldap_set_string_attr(&apstAttrs[i++], NDB_OBJCLASS_DATA, NDB_OBJCLASS))
+    {
+        _ldap_attrs_free(apstAttrs);
+        return NDB_FAILED;
+    }
+
+    if(_ldap_set_string_attr(&apstAttrs[i++], pcKey, NDB_ATTR_KEY))
+    {
+        _ldap_attrs_free(apstAttrs);
+        return NDB_FAILED;
+    }
+
+    if(_ldap_set_string_attr(&apstAttrs[i++], pcValue, NDB_ATTR_VALUE))
+    {
+        _ldap_attrs_free(apstAttrs);
+        return NDB_FAILED;
+    }
+
+    if(_ldap_IsDnExist(g_pstLDAP, pcDn))
+    {
+        iRet = ldap_modify_ext_s(g_pstLDAP, pcDn, apstAttrs, 0, 0);
+    }
+    else
+    {
+        iRet = ldap_add_ext_s(g_pstLDAP, pcDn, apstAttrs, 0, 0);
+    }
+
+    _ldap_attrs_free(apstAttrs);
+    return iRet;
+}
+
 /*****************************************************************************
     Func Name: ndb_store_sns
  Date Created: 2016/10/8
@@ -542,8 +577,9 @@ void ndb_close()
 *****************************************************************************/
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
-    char *pcDn;
-    int iRet;
+    LDAPMod *apstAttrs[NDB_ATTR_NUM_MAX + 1] = { 0 };
+    char *pcDn, *pcKey, *pcValue;
+    int iRet, i = 0;
 
     if(NDB_SUCCESS != _ndb_CheckLdapInit())
     {
@@ -556,20 +592,44 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
         return NDB_FAILED;
     }
 
-    if(_ldap_IsDnExist(g_pstLDAP, pcDn))
+    pcKey = _ndb_Bin2HexStr_Alloc(stKey.dptr, stKey.dsize);
+    if(NULL == pcKey)
     {
-        iRet = _ndb_store_replace(pcDn, stValue);
-    }
-    else
-    {
-        iRet = _ndb_store_add(pcDn, stValue);
+        free(pcDn);
+        return NDB_FAILED;
     }
 
+    pcValue = _ndb_Bin2HexStr_Alloc(stValue.dptr, stValue.dsize);
+    if(NULL == pcValue)
+    {
+        free(pcKey);
+        free(pcDn);
+        return NDB_FAILED;
+    }
+
+    iRet = _ndb_store_sns(pcDn, pcKey, pcValue);
+
+    free(pcValue);
+    free(pcKey);
     free(pcDn);
-    return NDB_SUCCESS;
+    return iRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_fetch
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据
+        Input:
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 datum ndb_fetch (int iDirId, datum stKey)
 {
     char *pcDn;
@@ -589,6 +649,7 @@ datum ndb_fetch (int iDirId, datum stKey)
     }
 
     stRet.dptr = _ldap_GetValByDn(g_pstLDAP, pcDn, &iDataSize);
+    stRet.dsize = iDataSize;
     return stRet;
 }
 
@@ -623,10 +684,10 @@ int ndb_delete (int iDirId, datum stKey)
         return NDB_FAILED;
     }
 
-    iRet = NDB_SUCCESS;
-    if(ldap_delete_s(g_pstLDAP, pcDn))
+    iRet = ldap_delete_s(g_pstLDAP, pcDn);
+    if(iRet == LDAP_NO_SUCH_OBJECT)
     {
-        iRet = NDB_FAILED;
+        iRet = NDB_SUCCESS;
     }
 
     free(pcDn);

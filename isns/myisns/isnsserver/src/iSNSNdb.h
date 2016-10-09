@@ -7,9 +7,11 @@
 #define NDB_DIR_NAME_MAX_LEN        31
 #define NDB_NON_KEY_MAX_LEN         63
 
+#define NDB_ATTR_NUM_MAX                3
 #define NDB_ATTR_KEY                "isnsKey"
 #define NDB_ATTR_VALUE              "isnsValue"
-#define NDB_ATTR_OBJECT             "isnsData"
+#define NDB_OBJCLASS_DATA           "isnsData"
+
 #define NDB_OBJCLASS                "objectclass"
 #define NDB_OU_OBJCLASS             "organizationalUnit"
 #define NDB_OBJ_OU                  "ou"

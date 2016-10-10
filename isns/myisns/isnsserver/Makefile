@@ -65,6 +65,7 @@ OBJECTS += iSNSList.o
 OBJECTS += iSNSconfig.o
 OBJECTS += iSNSobjects.o
 OBJECTS += iSNSNdb.o
+OBJECTS += iSNSNdbLdap.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -151,6 +152,9 @@ iSNSobjects.o : $(SRCDIR)iSNSobjects.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@ 
 
 iSNSNdb.o : $(SRCDIR)iSNSNdb.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@ 
+
+iSNSNdbLdap.o : $(SRCDIR)iSNSNdbLdap.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@ 
 
 ut : 

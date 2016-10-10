@@ -4,21 +4,11 @@
 
 /* Modeled after ldap functions */
 
-#define NDB_DIR_NAME_MAX_LEN        31
-#define NDB_NON_KEY_MAX_LEN         63
-
-#define NDB_ATTR_NUM_MAX                3
-#define NDB_ATTR_KEY                "isnsKey"
-#define NDB_ATTR_VALUE              "isnsValue"
-#define NDB_OBJCLASS_DATA           "isnsData"
-
-#define NDB_OBJCLASS                "objectclass"
-#define NDB_OU_OBJCLASS             "organizationalUnit"
-#define NDB_OBJ_OU                  "ou"
-
 #define NDB_SUCCESS                 0
 #define NDB_FAILED                  (-1)
 
+/* 数据库中一级目录(ou)的最大数量 */
+#define NDB_MAX_DIRS_COUNT          16
 
 typedef struct {
     char  *dptr;
@@ -33,11 +23,9 @@ enum
     NDBM_REPLACE = 1,
 };
 
-
 extern int ndbm_errno;
 
 int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase);
-int ndb_dir_set (int iDirCount);
 void ndb_close ();
 
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag);
@@ -46,6 +34,39 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst);
 int ndb_delete (int iDirId, datum stKey);
 datum ndb_firstkey (int iDirId);
 datum ndb_nextkey (int iDirId, datum stKey);
+
+/* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
+char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize);
+
+/* 返回的指针需调用者释放 */
+char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize);
+
+
+static inline datum ndb_datum_compress(datum stDatum)
+{
+    datum stNew;
+
+    if(NULL == stDatum.dptr)
+    {
+        return stDatum;
+    }
+
+    stNew.dptr = ndb_compress(stDatum.dptr, stDatum.dsize, &stNew.dsize);
+    return stNew;
+}
+
+static inline datum ndb_datum_decompress(datum stDatum)
+{
+    datum stNew;
+
+    if(NULL == stDatum.dptr)
+    {
+        return stDatum;
+    }
+
+    stNew.dptr = ndb_decompress(stDatum.dptr, stDatum.dsize, &stNew.dsize);
+    return stNew;
+}
 
 
 

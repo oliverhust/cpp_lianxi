@@ -709,11 +709,6 @@ ISNSdbOpen( void )
         return ERROR;
     }
 
-    if(NDB_SUCCESS != ndb_dir_set(SNS_DB_MAX_DIR_NUM))
-    {
-        return ERROR;
-    }
-
     ddmem=(SOIP_Dd_Member *)calloc( MAX_MEMBER_PER_DD, sizeof(SOIP_Dd_Member) );
     dlist_src=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
     dlist_node=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));

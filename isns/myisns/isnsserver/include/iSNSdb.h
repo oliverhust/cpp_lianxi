@@ -62,11 +62,6 @@
 #define ISNS_LDAP_ISNS_BASE             "dc=abc,dc=com"
 
 
-/* 数据库中目录(文件)的最大数量 */
-#define SNS_DB_MAX_DIR_NUM   16
-
-
-
 /*
  * Function prototypes
  */

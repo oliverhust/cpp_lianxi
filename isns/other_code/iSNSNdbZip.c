@@ -6,14 +6,6 @@
 #define BLKSIZE         16
 
 
-void stop(const char *pcStr)
-{
-	//printf("Stop at: %s\r\n", pcStr);
-	//getchar();
-}
-
-#define stop(x) 
-
 /* 将指针向后移动到非0处,最多跳过255个0 */
 static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
 {
@@ -27,30 +19,23 @@ static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
     return (unsigned char)uiI;
 }
 
-/* 返回的指针需调用者释放 */
-char *compress(const char *pcInData, int iInSize, int *piOutSize)
+/* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
+char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 {
-	const char *p = pcInData;
-	char *pcOut, *pcRet;
-    int iRest = iInSize, iMalloc;
-
-	printf("pcInData=%p, iInSize=%d, piOutSize=%p\r\n", pcInData, iInSize, piOutSize);
+    const char *p = pcInData;
+    char *pcOut, *pcRet;
+    int iRest = iInSize;
 
     *piOutSize = 0;
-	iMalloc = iInSize + iInSize / 16 + 1;
-	pcOut = pcRet = malloc(iMalloc);
+    pcOut = pcRet = malloc(iInSize + iInSize / BLKSIZE + 1);
     if(NULL == pcRet)
     {
         return pcRet;
     }
 
-	printf("pcOut=%p, malloc %d\r\n", pcOut, iMalloc);
-	stop("after malloc");
-
     while(1)
-    {		
-		*pcOut++ = _passZeroBytes(&p, &iRest);
-		stop("after pass zero");
+    {
+        *pcOut++ = _passZeroBytes(&p, &iRest);
         if(iRest > BLKSIZE)
         {
             memcpy(pcOut, p, BLKSIZE);
@@ -62,7 +47,6 @@ char *compress(const char *pcInData, int iInSize, int *piOutSize)
         {
             memcpy(pcOut, p, iRest);
             pcOut += iRest;
-			stop("after final cp");
             break;
         }
     }
@@ -76,7 +60,7 @@ static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
 {
     int i, iSize = iInSize + 1;
 
-    for(i = 0; i < iInSize; i += BLKSIZE)
+    for(i = 0; i < iInSize; i += BLKSIZE + 1)
     {
         iSize += (int)(unsigned int)(unsigned char)pcInData[i] - 1;
     }
@@ -85,10 +69,10 @@ static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
 }
 
 /* 返回的指针需调用者释放 */
-char *uncompress(const char *pcInData, int iInSize, int *piOutSize)
+char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 {
-	const char *p = pcInData;
-	char *pcOut, *pcRet;
+    const char *p = pcInData;
+    char *pcOut, *pcRet;
     int iN, i = 0;
 
     *piOutSize = 0;

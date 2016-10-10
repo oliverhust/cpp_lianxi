@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+
+#ifndef LDAP_DEPRECATED
+#define LDAP_DEPRECATED 1
+#endif
+//#include <openldap/ldap.h>
 #include <ldap.h>
 
 #include "iSNSNdb.h"
@@ -320,50 +325,6 @@ static char *_ndb_DnName_Alloc(int iDirId, const datum *pstKey)
     return pcRet;
 }
 
-
-static int _ndb_store_replace(const char *pcDn, datum stValue)
-{
-    LDAPMod stMod;
-    LDAPMod *apstMod[] = {&stMod, NULL};
-    char *apcModVal[] = {NULL, NULL};
-    int iRet;
-
-    apcModVal[0] = _ndb_Bin2HexStr_Alloc(stValue.dptr, stValue.dsize);
-
-    stMod.mod_op = LDAP_MOD_REPLACE;
-    stMod.mod_type = NDB_ATTR_VALUE;
-    stMod.mod_values = apcModVal;
-
-    iRet = ldap_modify_ext_s(g_pstLDAP, pcDn, apstMod, 0, 0);
-    free(apcModVal[0]);
-
-    return iRet;
-}
-
-static int _ndb_store_add(const char *pcDn, datum stValue)
-{
-    LDAPMod stMod, stObjClass;
-    LDAPMod *apstMod[] = {&stMod, &stObjClass, NULL};
-    char *apcModVal[] = {NULL, NULL};
-    char *apcObjClass[] = { NULL, NULL };
-    int iRet;
-
-    apcModVal[0] = _ndb_Bin2HexStr_Alloc(stValue.dptr, stValue.dsize);
-    stMod.mod_type = NDB_ATTR_VALUE;
-    stMod.mod_values = apcModVal;
-    stMod.mod_op = LDAP_MOD_REPLACE;
-
-    apcObjClass[0] = NDB_OBJCLASS_DATA;
-    stObjClass.mod_type = NDB_OBJCLASS;
-    stObjClass.mod_values = apcObjClass;
-    stMod.mod_op = LDAP_MOD_REPLACE;
-
-    iRet = ldap_add_ext_s(g_pstLDAP, pcDn, apstMod, 0, 0);
-    free(apcModVal[0]);
-
-    return iRet;
-}
-
 static void _ndb_FreePointer(void **ppPtr)
 {
     void *pReal;
@@ -577,9 +538,8 @@ static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcVal
 *****************************************************************************/
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
-    LDAPMod *apstAttrs[NDB_ATTR_NUM_MAX + 1] = { 0 };
     char *pcDn, *pcKey, *pcValue;
-    int iRet, i = 0;
+    int iRet;
 
     if(NDB_SUCCESS != _ndb_CheckLdapInit())
     {

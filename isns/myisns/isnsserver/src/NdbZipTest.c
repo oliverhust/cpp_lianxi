@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 
 #include "iSNSNdbZip.h"
@@ -50,7 +49,7 @@ void test_basic_zip()
 
         free(pcUnzip);
         free(pcZip);
-        free(pcOld);
+		free(pcOld);
     }
 
 }
@@ -59,6 +58,7 @@ void test_basic_zip()
 int main()
 {
     test_basic_zip();
+	getchar();
     return 0;
 }
 

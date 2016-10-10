@@ -4,11 +4,14 @@
 
 /* Modeled after ldap functions */
 
-#define NDB_SUCCESS                 0
-#define NDB_FAILED                  (-1)
+/* 数据的压缩级别，0为不压缩 */
+#define NDB_DATA_COMPRESS_LEVEL             2
+
+#define NDB_SUCCESS                         0
+#define NDB_FAILED                          (-1)
 
 /* 数据库中一级目录(ou)的最大数量 */
-#define NDB_MAX_DIRS_COUNT          16
+#define NDB_MAX_DIRS_COUNT                  16
 
 typedef struct {
     char  *dptr;

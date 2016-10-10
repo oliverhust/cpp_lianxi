@@ -20,7 +20,6 @@ void init()
         printf("Init Failed!\r\n");
     }
 
-    iRet |= ndb_dir_set(7);
     if(0 != iRet)
     {
         printf("Set dir Failed!\r\n");
@@ -87,7 +86,7 @@ void test_rw()
 
     if(0 != memcmp(pData, stValue.dptr, rValue.dsize))
     {
-        printf("Data is not equal too!\r\n");
+        printf("Data sns is not equal!\r\n");
     }
 
     free(pData);

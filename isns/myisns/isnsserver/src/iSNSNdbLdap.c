@@ -618,11 +618,6 @@ datum ndb_ldap_fetch_sns (int iDirId, datum stKey, void *pDst)
     datum stValue;
 
     memset(&stValue, 0, sizeof(stValue));
-    if(NDB_SUCCESS != _ndb_CheckLdapInit())
-    {
-        return stValue;
-    }
-
     stValue = ndb_ldap_fetch(iDirId, stKey);
     memcpy(pDst, stValue.dptr, stValue.dsize);
     return stValue;

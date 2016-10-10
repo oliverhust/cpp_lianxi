@@ -33,130 +33,85 @@ void ndb_close()
     ndb_ldap_close();
 }
 
+#if NDB_DATA_COMPRESS_LEVEL
+
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
-    datum stZipKey, stZipValue;
+    datum stZipValue;
     int iRet;
-
-    stZipKey = ndb_datum_compress(stKey);
-    if(NULL == stZipKey.dptr)
-    {
-        return NDB_FAILED;
-    }
 
     stZipValue = ndb_datum_compress(stValue);
     if(NULL == stZipValue.dptr)
     {
-        free(stZipKey.dptr);
         return NDB_FAILED;
     }
 
-    iRet = ndb_ldap_store_sns(iDirId, stZipKey, stZipValue, iFlag);
-
-    free(stZipKey.dptr);
+    iRet = ndb_ldap_store_sns(iDirId, stKey, stZipValue, iFlag);
     free(stZipValue.dptr);
+
     return iRet;
 }
 
 
 datum ndb_fetch (int iDirId, datum stKey)
 {
-    datum stZipKey, stZipValue, stValue;
+    datum stZipValue, stValue;
 
-    stZipKey = ndb_datum_compress(stKey);
-    if(NULL == stZipKey.dptr)
-    {
-        return stZipKey;
-    }
-
-    stZipValue = ndb_ldap_fetch(iDirId, stZipKey);
+    stZipValue = ndb_ldap_fetch(iDirId, stKey);
     stValue = ndb_datum_decompress(stZipValue);
 
     if(NULL != stZipValue.dptr)
     {
         free(stZipValue.dptr);
     }
-    free(stZipKey.dptr);
     return stValue;
 }
+
+#else
+
+int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
+{
+    return ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+}
+
+datum ndb_fetch (int iDirId, datum stKey)
+{
+    return ndb_ldap_fetch(iDirId, stKey);
+}
+
+#endif
 
 
 datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 {
-    datum stZipKey, stZipValue, stValue;
+    datum stValue;
 
-    stZipKey = ndb_datum_compress(stKey);
-    if(NULL == stZipKey.dptr)
-    {
-        return stZipKey;
-    }
-
-    stZipValue = ndb_ldap_fetch_sns(iDirId, stZipKey, pDst);
-    free(stZipKey.dptr);
-
-    stValue = ndb_datum_decompress(stZipValue);
-    if(NULL != stZipValue.dptr)
-    {
-        free(stZipValue.dptr);
-    }
+    stValue = ndb_fetch(iDirId, stKey);
+    memcpy(pDst, stValue.dptr, stValue.dsize);
     return stValue;
+
 }
 
 
 int ndb_delete (int iDirId, datum stKey)
 {
-    datum stZipKey;
-    int iRet;
-
-    stZipKey = ndb_datum_compress(stKey);
-    if(NULL == stZipKey.dptr)
-    {
-        return NDB_FAILED;
-    }
-
-    iRet = ndb_ldap_delete(iDirId, stZipKey);
-
-    free(stZipKey.dptr);
-    return iRet;
-
+    return ndb_ldap_delete(iDirId, stKey);
 }
 
 
 datum ndb_firstkey (int iDirId)
 {
-    datum stKey, stZipKey;
-
-    stZipKey = ndb_ldap_firstkey(iDirId);
-    stKey = ndb_datum_decompress(stZipKey);
-
-    if(NULL != stZipKey.dptr)
-    {
-        free(stZipKey.dptr);
-    }
-    return stKey;
+    return ndb_ldap_firstkey(iDirId);
 }
 
 
 datum ndb_nextkey (int iDirId, datum stKey)
 {
-    datum stNextKey, stZipKey, stZipNextKey;
-
-    stZipKey = ndb_datum_compress(stKey);
-    stZipNextKey = ndb_ldap_nextkey(iDirId, stZipKey);
-    stNextKey = ndb_datum_decompress(stZipNextKey);
-
-    if(NULL != stZipKey.dptr)
-    {
-        free(stZipKey.dptr);
-    }
-    if(NULL != stZipNextKey.dptr)
-    {
-        free(stZipNextKey.dptr);
-    }
-
-    return stNextKey;
+    return ndb_ldap_nextkey(iDirId, stKey);
 }
 
+
+#if NDB_DATA_COMPRESS_LEVEL == 1
 
 /* 将指针向后移动到非0处,最多跳过255个0 */
 static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
@@ -164,7 +119,7 @@ static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
     const char *pcData = *ppcData;
     unsigned int uiI;
 
-    for(uiI = 0; uiI < (unsigned char)*piRestSize && uiI < UCHAR_MAX && 0 == pcData[uiI]; uiI++);
+    for(uiI = 0; (int)uiI < *piRestSize && uiI < UCHAR_MAX && 0 == pcData[uiI]; uiI++);
 
     *ppcData += uiI;
     *piRestSize -= uiI;
@@ -258,5 +213,99 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
     return pcRet;
 }
 
+#elif NDB_DATA_COMPRESS_LEVEL == 2
+
+/* 转义字符 */
+#define NDB_SPECIAL_CHAR                0xAB
+
+/* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
+char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
+{
+    char *pcOut, *pcRet;
+    int i = 0, iN;
+
+    *piOutSize = 0;
+    pcRet = pcOut = malloc(2 * iInSize);
+    if(NULL == pcRet)
+    {
+        return pcRet;
+    }
+
+    while(i < iInSize)
+    {
+        if(NDB_SPECIAL_CHAR == (unsigned char)pcInData[i])
+        {
+            *pcOut++ = NDB_SPECIAL_CHAR;
+            *pcOut++ = 0;
+            i++;
+        }
+        else if(0 == pcInData[i] && i+1 < iInSize && 0 == pcInData[i+1])
+        {
+            i += 2;
+            for(iN=2; i<iInSize && 0==pcInData[i] && iN < UCHAR_MAX; iN++,i++);
+            *pcOut++ = NDB_SPECIAL_CHAR;
+            *pcOut++ = (char)iN;
+        }
+        else
+        {
+            *pcOut++ = pcInData[i++];
+        }
+    }
+
+    *piOutSize = pcOut - pcRet;
+    return pcRet;
+}
+
+static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
+{
+    int i, iSize = iInSize;
+
+    for(i = 0; i < iInSize; i++)
+    {
+        if((unsigned char)pcInData[i] == NDB_SPECIAL_CHAR && i + 1 < iInSize)
+        {
+            iSize += (unsigned char)pcInData[++i];
+        }
+    }
+
+    return malloc(iSize);
+}
 
 
+/* 返回的指针需调用者释放 */
+char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
+{
+    char *pcRet, *pcOut;
+    int i = 0, iN;
+
+    *piOutSize = 0;
+    pcRet = pcOut = _MallocUnzipSpace(pcInData, iInSize);
+    if(NULL == pcRet)
+    {
+        return pcRet;
+    }
+
+    while(i < iInSize)
+    {
+        if(NDB_SPECIAL_CHAR != (unsigned char)pcInData[i])
+        {
+            *pcOut++ = pcInData[i++];
+        }
+        else if(i + 1 < iInSize && 2 <= (iN=(unsigned char)pcInData[i+1]))
+        {
+            memset(pcOut, 0, iN);
+            pcOut += iN;
+            i += 2;
+        }
+        else
+        {
+            *pcOut++ = NDB_SPECIAL_CHAR;
+            i += 2;
+        }
+    }
+
+    *piOutSize = pcOut - pcRet;
+    return pcRet;
+}
+
+#endif

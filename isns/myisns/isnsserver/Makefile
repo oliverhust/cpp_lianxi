@@ -159,7 +159,7 @@ iSNSNdbLdap.o : $(SRCDIR)iSNSNdbLdap.c
 
 ut : 
 	dos2unix $(SRCDIR)NdbTest.c
-	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c
+	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c $(SRCDIR)iSNSNdbLdap.c
 
 clean :
 	rm $(OBJECTS) isnsd || :

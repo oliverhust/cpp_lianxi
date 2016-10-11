@@ -216,7 +216,7 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 #elif NDB_DATA_COMPRESS_LEVEL == 2
 
 /* 转义字符 */
-#define NDB_SPECIAL_CHAR                0xAB
+#define NDB_SPECIAL_CHAR                '\xEE'
 
 /* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
 char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
@@ -233,7 +233,7 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 
     while(i < iInSize)
     {
-        if(NDB_SPECIAL_CHAR == (unsigned char)pcInData[i])
+        if(NDB_SPECIAL_CHAR == pcInData[i])
         {
             *pcOut++ = NDB_SPECIAL_CHAR;
             *pcOut++ = 0;
@@ -258,19 +258,19 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 
 static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
 {
-    int i, iSize = iInSize;
+    int iSize = iInSize;
+    const char *pcPos = pcInData - 1, *pcEnd = pcInData + iInSize - 1;
 
-    for(i = 0; i < iInSize; i++)
+    while(++pcPos <= pcEnd)
     {
-        if((unsigned char)pcInData[i] == NDB_SPECIAL_CHAR && i + 1 < iInSize)
+        if(*pcPos == NDB_SPECIAL_CHAR && pcPos < pcEnd)
         {
-            iSize += (unsigned char)pcInData[++i];
+            iSize += (unsigned char)(*++pcPos);
         }
     }
 
     return malloc(iSize);
 }
-
 
 /* 返回的指针需调用者释放 */
 char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
@@ -287,7 +287,7 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 
     while(i < iInSize)
     {
-        if(NDB_SPECIAL_CHAR != (unsigned char)pcInData[i])
+        if(NDB_SPECIAL_CHAR != pcInData[i])
         {
             *pcOut++ = pcInData[i++];
         }

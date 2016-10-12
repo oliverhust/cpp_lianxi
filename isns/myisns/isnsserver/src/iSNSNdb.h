@@ -4,8 +4,8 @@
 
 /* Modeled after ldap functions */
 
-/* 数据的压缩级别，0为不压缩 */
-#define NDB_DATA_COMPRESS_LEVEL             2
+/* 持久化数据的压缩级别，0为不压缩 */
+#define NDB_DATA_COMPRESS_LEVEL             0
 
 #define NDB_SUCCESS                         0
 #define NDB_FAILED                          (-1)

@@ -34,7 +34,7 @@
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNShash.h"
-#include "ndb.h"
+#include "iSNSNdb.h"
 #include "iSNSdebug.h"
 
 static uint32_t hash(datum *pKey);
@@ -48,12 +48,12 @@ SNSHashEntry **HashKeyTable[HASH_TABLE_NUM_ENTRIES];
 MSG_Q_ID SNSHashEntryQ = NULL;
 uint8_t *HashBufferPool = NULL;
 
-int   ndb_debug = 0;
+int   ndb_hash_debug = 0;
 datum gNullDatum;
 
-ndb_error ndb_errno;
+ndb_error ndb_hash_errno;
 
-NDB_FILE ndb_open (char *file, int block_size, int flags, int mode, void (*fatal_func)())
+int ndb_hash_open()
 {
     int x;
     /* memset(HashTable, 0, sizeof(HashTable)); */
@@ -72,10 +72,10 @@ NDB_FILE ndb_open (char *file, int block_size, int flags, int mode, void (*fatal
       HashKeyTable[x] = calloc(HASH_TABLE_NUM_ENTRIES, sizeof(SNSHashEntry *));
     }
 
-    return (NDB_FILE)1234;
+    return NDB_SUCCESS;
 }
 
-void ndb_close (NDB_FILE dbf)
+void ndb_hash_close ()
 {
     SNSHashEntryQ = NULL;
     free(HashBufferPool);
@@ -83,7 +83,7 @@ void ndb_close (NDB_FILE dbf)
     return;
 }
 
-int ndb_store ( NDB_FILE dbf, datum key,
+int ndb_hash_store ( NDB_FILE dbf, datum key,
                 datum content, int flags)
 {
     SNSHashEntry *pEntry, *pPrev = NULL;
@@ -91,7 +91,7 @@ int ndb_store ( NDB_FILE dbf, datum key,
     SNSHashEntry **table_ptr;
 
     hash_key_val = ((SOIP_DB_Entry *)(content.dptr))->data_type;
-    if (ndb_debug & 0x02) {
+    if (ndb_hash_debug & 0x02) {
         printf("ndb_store(): data_type = %d, hashes = %d",
            (int)hash_key_val, (int)hash_key_val);
     }
@@ -99,7 +99,7 @@ int ndb_store ( NDB_FILE dbf, datum key,
     table_ptr = HashKeyTable[ hash_key_val ];
     hash_val = hash(&key);
 
-    if (ndb_debug & 0x02) {
+    if (ndb_hash_debug & 0x02) {
         printf("ndb_store(): entry stored at %d. Key size: %d\n", (int)hash_val, (int)key.dsize);
         for (i = 0; i < (unsigned)key.dsize; i ++) {
             if (i % 16 == 0)
@@ -107,7 +107,7 @@ int ndb_store ( NDB_FILE dbf, datum key,
             printf("%02x ", (unsigned)key.dptr[i]);
         }
         printf("\n");
-        if (ndb_debug & 0x08) {
+        if (ndb_hash_debug & 0x08) {
             for (i = 0; i < MIN((unsigned)content.dsize, 64); i ++) {
                 if (i % 16 == 0)
                     printf("\n");
@@ -136,7 +136,7 @@ int ndb_store ( NDB_FILE dbf, datum key,
     return SUCCESS;
 }
 
-datum ndb_fetch (uint32_t key_type, datum key)
+datum ndb_hash_fetch (uint32_t key_type, datum key)
 {
     SNSHashEntry *pEntry;
     SNSHashEntry **table_ptr;
@@ -146,7 +146,7 @@ datum ndb_fetch (uint32_t key_type, datum key)
     unsigned i;
 
     hash_key_val = key_type;
-    if (ndb_debug & 0x02) {
+    if (ndb_hash_debug & 0x02) {
         printf("ndb_fetch(): data_type = %d, hashes = %d",
            (int)key_type, (int)hash_key_val);
     }
@@ -155,7 +155,7 @@ datum ndb_fetch (uint32_t key_type, datum key)
 
     hash_val = hash(&key);
 
-    if (ndb_debug & 0x04) {
+    if (ndb_hash_debug & 0x04) {
         printf("ndb_fetch(): fetch hash %d.  Key size: %d\n", (int)hash_val, (int)key.dsize);
         for (i = 0; i < (unsigned)key.dsize; i ++) {
             if (i % 16 == 0)
@@ -177,7 +177,7 @@ datum ndb_fetch (uint32_t key_type, datum key)
     return gNullDatum;
 }
 
-datum ndb_fetch_sns (uint32_t key_type, datum key, char* msg)
+datum ndb_hash_fetch_sns (uint32_t key_type, datum key, char* msg)
 {
     SNSHashEntry *pEntry;
     SNSHashEntry **table_ptr;
@@ -187,7 +187,7 @@ datum ndb_fetch_sns (uint32_t key_type, datum key, char* msg)
     unsigned i;
 
     hash_key_val = key_type;
-    if (ndb_debug & 0x02) {
+    if (ndb_hash_debug & 0x02) {
         printf("ndb_fetch(): data_type = %d, hashes = %d",
            (int)key_type, (int)hash_key_val);
     }
@@ -195,7 +195,7 @@ datum ndb_fetch_sns (uint32_t key_type, datum key, char* msg)
 
     hash_val = hash(&key);
 
-    if (ndb_debug & 0x04) {
+    if (ndb_hash_debug & 0x04) {
         printf("ndb_fetch(): fetch hash %d.  Key size: %d\n", (int)hash_val, (int)key.dsize);
         for (i = 0; i < (unsigned)key.dsize; i ++) {
             if (i % 16 == 0)
@@ -217,7 +217,7 @@ datum ndb_fetch_sns (uint32_t key_type, datum key, char* msg)
     return gNullDatum;
 }
 
-int ndb_delete (uint32_t key_type, datum key)
+int ndb_hash_delete (uint32_t key_type, datum key)
 {
     SNSHashEntry *pEntry;
     SNSHashEntry **table_ptr;
@@ -225,7 +225,7 @@ int ndb_delete (uint32_t key_type, datum key)
     uint32_t hash_key_val;
 
     hash_key_val = key_type;
-    if (ndb_debug & 0x02) {
+    if (ndb_hash_debug & 0x02) {
         printf("ndb_fetch(): data_type = %d, hashes = %d",
            (int)key_type, (int)hash_key_val);
     }
@@ -248,7 +248,7 @@ int ndb_delete (uint32_t key_type, datum key)
     return ERROR;
 }
 
-datum ndb_firstkey (uint32_t key_type)
+datum ndb_hash_firstkey (uint32_t key_type)
 {
     uint32_t i, hash_key_val;
     datum ret;
@@ -268,7 +268,7 @@ datum ndb_firstkey (uint32_t key_type)
     return gNullDatum;
 }
 
-datum ndb_nextkey (uint32_t key_type, datum key)
+datum ndb_hash_nextkey (uint32_t key_type, datum key)
 {
     SNSHashEntry *pEntry;
     SNSHashEntry **table_ptr;

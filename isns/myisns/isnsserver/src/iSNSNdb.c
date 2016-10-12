@@ -5,16 +5,20 @@
 #include <string.h>
 
 #include "iSNSNdb.h"
+#include "iSNShash.h"
 #include "iSNSNdbLdap.h"
 
 int ndbm_errno = 0;
 
-#define NDB_BLKSIZE         16
-
-
 int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase)
 {
     int iRet;
+
+    iRet = ndb_hash_open();
+    if(NDB_SUCCESS != iRet)
+    {
+        return iRet;
+    }
 
     iRet = ndb_ldap_init(pcLdapUrl, pcAdminDn, pcPassword, pcBase);
     if(NDB_SUCCESS != iRet)
@@ -24,16 +28,61 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
 
     iRet = ndb_ldap_dir_set(NDB_MAX_DIRS_COUNT);
 
+    /* 数据恢复到内存中 */
+
     return iRet;
 }
 
-
 void ndb_close()
 {
+    ndb_hash_close();
     ndb_ldap_close();
 }
 
-#if NDB_DATA_COMPRESS_LEVEL
+
+datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
+{
+    datum stValue;
+
+    stValue = ndb_fetch(iDirId, stKey);
+    memcpy(pDst, stValue.dptr, stValue.dsize);
+    return stValue;
+
+}
+
+
+int ndb_delete (int iDirId, datum stKey)
+{
+    return ndb_ldap_delete(iDirId, stKey);
+}
+
+
+datum ndb_firstkey (int iDirId)
+{
+    return ndb_ldap_firstkey(iDirId);
+}
+
+
+datum ndb_nextkey (int iDirId, datum stKey)
+{
+    return ndb_ldap_nextkey(iDirId, stKey);
+}
+
+
+
+#if NDB_DATA_COMPRESS_LEVEL == 0
+
+int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
+{
+    return ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+}
+
+datum ndb_fetch (int iDirId, datum stKey)
+{
+    return ndb_ldap_fetch(iDirId, stKey);
+}
+
+#else NDB_DATA_COMPRESS_LEVEL > 0
 
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
@@ -67,51 +116,12 @@ datum ndb_fetch (int iDirId, datum stKey)
     return stValue;
 }
 
-#else
-
-int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
-{
-    return ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
-}
-
-datum ndb_fetch (int iDirId, datum stKey)
-{
-    return ndb_ldap_fetch(iDirId, stKey);
-}
-
 #endif
 
 
-datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
-{
-    datum stValue;
-
-    stValue = ndb_fetch(iDirId, stKey);
-    memcpy(pDst, stValue.dptr, stValue.dsize);
-    return stValue;
-
-}
-
-
-int ndb_delete (int iDirId, datum stKey)
-{
-    return ndb_ldap_delete(iDirId, stKey);
-}
-
-
-datum ndb_firstkey (int iDirId)
-{
-    return ndb_ldap_firstkey(iDirId);
-}
-
-
-datum ndb_nextkey (int iDirId, datum stKey)
-{
-    return ndb_ldap_nextkey(iDirId, stKey);
-}
-
-
 #if NDB_DATA_COMPRESS_LEVEL == 1
+
+#define NDB_BLKSIZE             16
 
 /* 将指针向后移动到非0处,最多跳过255个0 */
 static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
@@ -163,7 +173,7 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 }
 
 /* 申请内存用来后面存放解压的数据 */
-static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
+static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
 {
     int i, iSize = iInSize + 1;
 
@@ -182,7 +192,7 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
     int iN, i = 0;
 
     *piOutSize = 0;
-    pcOut = pcRet = _MallocUnzipSpace(pcInData, iInSize);
+    pcOut = pcRet = _mallocUnzipSpace(pcInData, iInSize);
     if(NULL == pcRet)
     {
         return pcRet;
@@ -256,7 +266,7 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
     return pcRet;
 }
 
-static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
+static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
 {
     int iSize = iInSize;
     const char *pcPos = pcInData - 1, *pcEnd = pcInData + iInSize - 1;
@@ -279,7 +289,7 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
     int i = 0, iN;
 
     *piOutSize = 0;
-    pcRet = pcOut = _MallocUnzipSpace(pcInData, iInSize);
+    pcRet = pcOut = _mallocUnzipSpace(pcInData, iInSize);
     if(NULL == pcRet)
     {
         return pcRet;

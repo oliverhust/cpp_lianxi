@@ -83,8 +83,7 @@ void ndb_hash_close ()
     return;
 }
 
-int ndb_hash_store ( NDB_FILE dbf, datum key,
-                datum content, int flags)
+int ndb_hash_store (datum key, datum content)
 {
     SNSHashEntry *pEntry, *pPrev = NULL;
     uint32_t hash_val, i, hash_key_val;

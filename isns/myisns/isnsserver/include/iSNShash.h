@@ -59,7 +59,7 @@ typedef struct _sns_hash_entry {
 
 int ndb_hash_open();
 void ndb_hash_close ();
-int ndb_hash_store ( NDB_FILE dbf, datum key, datum content, int flags);
+int ndb_hash_store (datum key, datum content);
 datum ndb_hash_fetch (uint32_t key_type, datum key);
 datum ndb_hash_fetch_sns (uint32_t key_type, datum key, char* msg);
 int ndb_hash_delete (uint32_t key_type, datum key);

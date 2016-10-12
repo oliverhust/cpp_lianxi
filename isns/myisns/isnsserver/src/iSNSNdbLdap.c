@@ -649,7 +649,7 @@ int ndb_ldap_delete (int iDirId, datum stKey)
     return iRet;
 }
 
-static char *_ndb_GetRdnDataByDn(const char *pcDn, int *piDataSize)
+static char *_ndb_AllocRdnDataByDn(const char *pcDn, int *piDataSize)
 {
     char **ppcRdn;
     char *pcRnHexStr, *pcBinData;
@@ -697,7 +697,7 @@ datum ndb_ldap_firstkey (int iDirId)
     }
 
     pcDn = ldap_get_dn(g_pstLDAP, g_pstE);
-    stRet.dptr = _ndb_GetRdnDataByDn(pcDn, &iDatSize);
+    stRet.dptr = _ndb_AllocRdnDataByDn(pcDn, &iDatSize);
     stRet.dsize = iDatSize;
     free(pcDn);
 
@@ -751,7 +751,7 @@ static datum _ndb_GetNextKey(int iDirId, const char *pcDnInput)
     if(NULL != g_pstE)
     {
         pcDnTmp = ldap_get_dn(g_pstLDAP, g_pstE);
-        stRet.dptr = _ndb_GetRdnDataByDn(pcDnTmp, &iDatSize);
+        stRet.dptr = _ndb_AllocRdnDataByDn(pcDnTmp, &iDatSize);
         stRet.dsize = iDatSize;
     }
     else
@@ -779,7 +779,7 @@ static datum _ndb_GetNextKey_Fast()
     }
 
     pcDn = ldap_get_dn(g_pstLDAP, g_pstE);
-    stRet.dptr = _ndb_GetRdnDataByDn(pcDn, &iDatSize);
+    stRet.dptr = _ndb_AllocRdnDataByDn(pcDn, &iDatSize);
     stRet.dsize = iDatSize;
     free(pcDn);
 
@@ -814,7 +814,68 @@ datum ndb_ldap_nextkey (int iDirId, datum stKey)
     return stRet;
 }
 
+int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
+{
+    LDAPMessage *pstRes, *pstEntry;
+    datum stKey, stValue;
+    char *pcDirDn, *pcDn, **ppcStrVals;
+    int iRet;
 
+    if(NDB_SUCCESS != _ndb_CheckLdapInit())
+    {
+        return NDB_FAILED;
+    }
+
+    pcDirDn = _ndb_DnName_Alloc(iDirId, NULL);
+    if(NULL == pcDirDn)
+    {
+        return NDB_FAILED;
+    }
+
+    iRet = ldap_search_s(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &pstRes);
+    if (LDAP_NO_SUCH_OBJECT == iRet)
+    {
+        free(pcDirDn);
+        return NDB_SUCCESS;
+    }
+    else if(LDAP_SUCCESS != iRet)
+    {
+        free(pcDirDn);
+        return NDB_FAILED;
+    }
+    free(pcDirDn);
+
+    for(pstEntry = ldap_first_entry(g_pstLDAP); \
+        NULL != pstEntry; \
+        pstEntry = ldap_next_entry(g_pstLDAP, pstEntry))
+    {
+        pcDn = ldap_get_dn(g_pstLDAP, pstEntry);
+        stKey.dptr = _ndb_AllocRdnDataByDn(pcDn, &stKey.dsize);
+        free(pcDn);
+
+        ppcStrVals = ldap_get_values(g_pstLDAP, pstEntry, NDB_ATTR_VALUE);
+        if(NULL == ppcStrVals)
+        {
+            free(stKey.dptr);
+            continue;
+        }
+
+        stValue.dptr = _ndb_HexStr2Bin_Alloc(ppcStrVals[0], &stValue.dsize);
+        ldap_value_free(ppcStrVals);
+
+        if(NDB_SUCCESS != pfCallback(stKey, stValue, pSelfData))
+        {
+            free(stValue.dptr);
+            free(stKey.dptr);
+            break;
+        }
+
+        free(stValue.dptr);
+        free(stKey.dptr);
+    }
+
+    return NDB_SUCCESS;
+}
 
 
 

@@ -10,9 +10,16 @@
 
 int ndbm_errno = 0;
 
+
+static int _ndb_recover_data(datum stKey, datum stValue, void *pSelfData)
+{
+    return ndb_hash_store(stKey, stValue);
+}
+
+
 int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase)
 {
-    int iRet;
+    int iRet, iDir;
 
     iRet = ndb_hash_open();
     if(NDB_SUCCESS != iRet)
@@ -29,6 +36,10 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
     iRet = ndb_ldap_dir_set(NDB_MAX_DIRS_COUNT);
 
     /* 数据恢复到内存中 */
+    for(iDir = 0; iDir < NDB_MAX_DIRS_COUNT; iDir++)
+    {
+        iRet |= ndb_ldap_scan_dir(iDir, _ndb_recover_data, NULL);
+    }
 
     return iRet;
 }
@@ -53,33 +64,38 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 
 int ndb_delete (int iDirId, datum stKey)
 {
-    return ndb_ldap_delete(iDirId, stKey);
+    int iRet = NDB_SUCCESS;
+    iRet |= ndb_hash_delete(iDirId, stKey);
+    iRet |=  ndb_ldap_delete(iDirId, stKey);
+    return iRet;
 }
 
 
 datum ndb_firstkey (int iDirId)
 {
-    return ndb_ldap_firstkey(iDirId);
+    return ndb_hash_firstkey(iDirId);
 }
 
 
 datum ndb_nextkey (int iDirId, datum stKey)
 {
-    return ndb_ldap_nextkey(iDirId, stKey);
+    return ndb_hash_nextkey(iDirId, stKey);
 }
-
 
 
 #if NDB_DATA_COMPRESS_LEVEL == 0
 
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
-    return ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+    int iRet;
+    iRet = ndb_hash_store(stKey, stValue);
+    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+    return iRet;
 }
 
 datum ndb_fetch (int iDirId, datum stKey)
 {
-    return ndb_ldap_fetch(iDirId, stKey);
+    return ndb_hash_fetch(iDirId, stKey);
 }
 
 #else NDB_DATA_COMPRESS_LEVEL > 0
@@ -89,13 +105,15 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
     datum stZipValue;
     int iRet;
 
+    iRet = ndb_hash_store(stKey, stValue);
+
     stZipValue = ndb_datum_compress(stValue);
     if(NULL == stZipValue.dptr)
     {
         return NDB_FAILED;
     }
 
-    iRet = ndb_ldap_store_sns(iDirId, stKey, stZipValue, iFlag);
+    iRet |= ndb_ldap_store_sns(iDirId, stKey, stZipValue, iFlag);
     free(stZipValue.dptr);
 
     return iRet;

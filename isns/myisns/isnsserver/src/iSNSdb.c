@@ -697,8 +697,15 @@ Database initialization.
 int
 ISNSdbOpen( void )
 {
+    ddmem=(SOIP_Dd_Member *)calloc( MAX_MEMBER_PER_DD, sizeof(SOIP_Dd_Member) );
+    dlist_src=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
+    dlist_node=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
+    p_scn_msg_buffer=(ISNS_Msg *)calloc(1, sizeof(ISNS_Msg));
+    p_scn_all_msg_buffer=(ISNS_Msg *)calloc(1, sizeof(ISNS_Msg));
+    p_scn_md=(ISNS_Msg_Descp *)calloc(1, sizeof(ISNS_Msg_Descp));
+    p_rspMd=(ISNS_Msg_Descp *)calloc(1, sizeof(ISNS_Msg_Descp));
 
-    /*
+     /*
      * Initialize database envirnoment and resources
      */
     if(NDB_SUCCESS != ndb_init(ISNS_LDAP_SERVER_URL,
@@ -708,14 +715,6 @@ ISNSdbOpen( void )
     {
         return ERROR;
     }
-
-    ddmem=(SOIP_Dd_Member *)calloc( MAX_MEMBER_PER_DD, sizeof(SOIP_Dd_Member) );
-    dlist_src=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
-    dlist_node=(uint32_t *)calloc(MAX_DD_PER_LIST, sizeof(uint32_t));
-    p_scn_msg_buffer=(ISNS_Msg *)calloc(1, sizeof(ISNS_Msg));
-    p_scn_all_msg_buffer=(ISNS_Msg *)calloc(1, sizeof(ISNS_Msg));
-    p_scn_md=(ISNS_Msg_Descp *)calloc(1, sizeof(ISNS_Msg_Descp));
-    p_rspMd=(ISNS_Msg_Descp *)calloc(1, sizeof(ISNS_Msg_Descp));
 
 
     return (SUCCESS);

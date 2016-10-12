@@ -30,7 +30,7 @@
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ***********************************************************************/
-#if 0
+#if 1
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNShash.h"

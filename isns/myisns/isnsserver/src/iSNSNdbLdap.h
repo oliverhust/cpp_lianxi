@@ -17,7 +17,7 @@
 #define NDB_OBJ_OU                  "ou"
 
 /* 对某个目录的遍历的回调函数, 返回非0值就终止遍历 */
-typedef int (*NDB_LDAP_SCAN_PF)(datum stKey, datum stValue, void *pSelfData);
+typedef int (*NDB_LDAP_SCAN_PF)(int iDirId, datum stKey, datum stValue, void *pSelfData);
 
 int ndb_ldap_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase);
 int ndb_ldap_dir_set(int iDirCount);

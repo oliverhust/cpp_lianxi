@@ -66,6 +66,7 @@ OBJECTS += iSNSconfig.o
 OBJECTS += iSNSobjects.o
 OBJECTS += iSNSNdb.o
 OBJECTS += iSNSNdbLdap.o
+OBJECTS += iSNShash.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -157,9 +158,12 @@ iSNSNdb.o : $(SRCDIR)iSNSNdb.c
 iSNSNdbLdap.o : $(SRCDIR)iSNSNdbLdap.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@ 
 
+iSNShash.o : $(SRCDIR)iSNShash.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
 ut : 
 	dos2unix $(SRCDIR)NdbTest.c
-	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c $(SRCDIR)iSNSNdbLdap.c
+	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c $(SRCDIR)iSNSNdbLdap.c $(SRCDIR)iSNShash.c
 
 clean :
 	rm $(OBJECTS) isnsd || :

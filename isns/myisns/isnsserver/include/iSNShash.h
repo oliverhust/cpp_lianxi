@@ -43,6 +43,8 @@
 #define HASH_KEY_SIZE  256
 #define HASH_MAX_DATA_SIZE  sizeof(SOIP_DB_Entry)
 
+typedef int ndb_error;
+
 typedef struct _sns_hash_entry {
 
     struct _sns_hash_entry *next;
@@ -59,7 +61,7 @@ typedef struct _sns_hash_entry {
 
 int ndb_hash_open();
 void ndb_hash_close ();
-int ndb_hash_store (datum key, datum content);
+int ndb_hash_store (uint32_t key_type, datum key, datum content);
 datum ndb_hash_fetch (uint32_t key_type, datum key);
 datum ndb_hash_fetch_sns (uint32_t key_type, datum key, char* msg);
 int ndb_hash_delete (uint32_t key_type, datum key);

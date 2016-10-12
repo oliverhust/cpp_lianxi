@@ -33,8 +33,8 @@
 #if 1
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
-#include "iSNShash.h"
 #include "iSNSNdb.h"
+#include "iSNShash.h"
 #include "iSNSdebug.h"
 
 static uint32_t hash(datum *pKey);
@@ -61,7 +61,7 @@ int ndb_hash_open()
         SNSHashEntryQ = (void *)1;
         HashBufferPool = (uint8_t*)calloc(HASH_NUM_BUFFERS, HASH_BUFFER_SIZE);
         if (!HashBufferPool || !SNSHashEntryQ)
-            return NULL;
+            return NDB_FAILED;
     }
     gNullDatum.dsize = 0;
     gNullDatum.dptr = NULL;
@@ -83,13 +83,13 @@ void ndb_hash_close ()
     return;
 }
 
-int ndb_hash_store (datum key, datum content)
+int ndb_hash_store (uint32_t key_type, datum key, datum content)
 {
     SNSHashEntry *pEntry, *pPrev = NULL;
     uint32_t hash_val, i, hash_key_val;
     SNSHashEntry **table_ptr;
 
-    hash_key_val = ((SOIP_DB_Entry *)(content.dptr))->data_type;
+    hash_key_val = key_type;
     if (ndb_hash_debug & 0x02) {
         printf("ndb_store(): data_type = %d, hashes = %d",
            (int)hash_key_val, (int)hash_key_val);

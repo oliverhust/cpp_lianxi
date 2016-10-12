@@ -845,7 +845,7 @@ int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
     }
     free(pcDirDn);
 
-    for(pstEntry = ldap_first_entry(g_pstLDAP); \
+    for(pstEntry = ldap_first_entry(g_pstLDAP, pstRes); \
         NULL != pstEntry; \
         pstEntry = ldap_next_entry(g_pstLDAP, pstEntry))
     {
@@ -863,7 +863,7 @@ int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
         stValue.dptr = _ndb_HexStr2Bin_Alloc(ppcStrVals[0], &stValue.dsize);
         ldap_value_free(ppcStrVals);
 
-        if(NDB_SUCCESS != pfCallback(stKey, stValue, pSelfData))
+        if(NDB_SUCCESS != pfCallback(iDirId, stKey, stValue, pSelfData))
         {
             free(stValue.dptr);
             free(stKey.dptr);

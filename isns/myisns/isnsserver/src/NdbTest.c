@@ -114,7 +114,7 @@ void test_rw()
         return;
     }
     stKey.dptr[1]--;
-    printf("Test rw success\r\n");
+    printf("Test rw finish\r\n");
 }
 
 #define K1  16

@@ -4,18 +4,14 @@
 #include <limits.h>
 #include <string.h>
 
+#include "iSNStypes.h"
 #include "iSNSNdb.h"
 #include "iSNShash.h"
 #include "iSNSNdbLdap.h"
 
 int ndbm_errno = 0;
 
-
-static int _ndb_recover_data(datum stKey, datum stValue, void *pSelfData)
-{
-    return ndb_hash_store(stKey, stValue);
-}
-
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData);
 
 int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase)
 {
@@ -64,10 +60,8 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 
 int ndb_delete (int iDirId, datum stKey)
 {
-    int iRet = NDB_SUCCESS;
-    iRet |= ndb_hash_delete(iDirId, stKey);
-    iRet |=  ndb_ldap_delete(iDirId, stKey);
-    return iRet;
+    (void)ndb_hash_delete(iDirId, stKey);
+    return ndb_ldap_delete(iDirId, stKey);
 }
 
 
@@ -83,29 +77,36 @@ datum ndb_nextkey (int iDirId, datum stKey)
 }
 
 
-#if NDB_DATA_COMPRESS_LEVEL == 0
-
-int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
-{
-    int iRet;
-    iRet = ndb_hash_store(stKey, stValue);
-    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
-    return iRet;
-}
-
 datum ndb_fetch (int iDirId, datum stKey)
 {
     return ndb_hash_fetch(iDirId, stKey);
 }
 
-#else NDB_DATA_COMPRESS_LEVEL > 0
+
+#if NDB_DATA_COMPRESS_LEVEL == 0
+
+int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
+{
+    int iRet;
+
+    iRet = ndb_hash_store(iDirId, stKey, stValue);
+    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+    return iRet;
+}
+
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
+{
+    return ndb_hash_store(iDirId, stKey, stValue);
+}
+
+#elif NDB_DATA_COMPRESS_LEVEL > 0
 
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
     datum stZipValue;
     int iRet;
 
-    iRet = ndb_hash_store(stKey, stValue);
+    iRet = ndb_hash_store(iDirId, stKey, stValue);
 
     stZipValue = ndb_datum_compress(stValue);
     if(NULL == stZipValue.dptr)
@@ -119,19 +120,18 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
     return iRet;
 }
 
-
-datum ndb_fetch (int iDirId, datum stKey)
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
 {
-    datum stZipValue, stValue;
+    datum stUnZipValue;
+    int iRet = NDB_FAILED;
 
-    stZipValue = ndb_ldap_fetch(iDirId, stKey);
-    stValue = ndb_datum_decompress(stZipValue);
-
-    if(NULL != stZipValue.dptr)
+    stUnZipValue = ndb_datum_decompress(stValue);
+    if(NULL != stUnZipValue.dptr)
     {
-        free(stZipValue.dptr);
+        iRet = ndb_hash_store(iDirId, stKey, stUnZipValue);
+        free(stUnZipValue.dptr);
     }
-    return stValue;
+    return iRet;
 }
 
 #endif

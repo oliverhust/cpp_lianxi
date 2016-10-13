@@ -4,15 +4,53 @@
 #include <limits.h>
 #include <string.h>
 
-#include "iSNStypes.h"
 #include "iSNSNdb.h"
 #include "iSNShash.h"
 #include "iSNSNdbLdap.h"
 
 int ndbm_errno = 0;
 
-static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData);
 
+/*****************************************************************************
+    Func Name: _ndb_recover_data
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 数据恢复的回调函数
+        Input: datum stKey  数据的KEY
+               datum stValue 数据的VALUE
+               void *pSelfData 私有数据
+       Output: 无
+       Return: 是否终止遍历
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static int _ndb_recover_data(datum stKey, datum stValue, void *pSelfData)
+{
+    return ndb_hash_store(stKey, stValue);
+}
+
+/*****************************************************************************
+    Func Name: ndb_init
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 数据库初始化
+        Input: const char *pcLdapUrl
+               const char *pcAdminDn
+               const char *pcPassword
+               const char *pcBase
+       Output: 无
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase)
 {
     int iRet, iDir;
@@ -40,13 +78,42 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
     return iRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_close
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 关闭数据库
+        Input: 无
+       Output: 无
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 void ndb_close()
 {
     ndb_hash_close();
     ndb_ldap_close();
 }
 
+/*****************************************************************************
+    Func Name: ndb_fetch_sns
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据并复制到输出
+        Input: int iDirId, datum stKey
+       Output: void *pDst
+       Return: 获取到的数据
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 {
     datum stValue;
@@ -57,56 +124,138 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 
 }
 
+/*****************************************************************************
+    Func Name: ndb_delete
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 删除数据
+        Input: int iDirId, datum stKey
+       Output: 无
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 int ndb_delete (int iDirId, datum stKey)
 {
-    (void)ndb_hash_delete(iDirId, stKey);
-    return ndb_ldap_delete(iDirId, stKey);
+    int iRet = NDB_SUCCESS;
+    iRet |= ndb_hash_delete(iDirId, stKey);
+    iRet |=  ndb_ldap_delete(iDirId, stKey);
+    return iRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_firstkey
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取第一个key
+        Input: int iDirId
+       Output: 无
+       Return: 第一个KEY
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 datum ndb_firstkey (int iDirId)
 {
     return ndb_hash_firstkey(iDirId);
 }
 
+/*****************************************************************************
+    Func Name: ndb_delete
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取下一个KEY
+        Input: int iDirId, datum stKey
+       Output: 无
+       Return: 下一个KEY
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 datum ndb_nextkey (int iDirId, datum stKey)
 {
     return ndb_hash_nextkey(iDirId, stKey);
 }
 
 
+#if NDB_DATA_COMPRESS_LEVEL == 0
+
+/*****************************************************************************
+    Func Name: ndb_store_sns
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 保存数据
+        Input: int iDirId, datum stKey, datum stValue, int iFlag
+       Output:
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
+{
+    int iRet;
+    iRet = ndb_hash_store(stKey, stValue);
+    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+    return iRet;
+}
+
+/*****************************************************************************
+    Func Name: ndb_fetch
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据
+        Input: int iDirId, datum stKey
+       Output:
+       Return: 获取到的数据
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 datum ndb_fetch (int iDirId, datum stKey)
 {
     return ndb_hash_fetch(iDirId, stKey);
 }
 
+#else NDB_DATA_COMPRESS_LEVEL > 0
 
-#if NDB_DATA_COMPRESS_LEVEL == 0
+/*****************************************************************************
+    Func Name: ndb_store_sns
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 保存数据
+        Input: int iDirId, datum stKey, datum stValue, int iFlag
+       Output:
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
-int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
-{
-    int iRet;
-
-    iRet = ndb_hash_store(iDirId, stKey, stValue);
-    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
-    return iRet;
-}
-
-static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
-{
-    return ndb_hash_store(iDirId, stKey, stValue);
-}
-
-#elif NDB_DATA_COMPRESS_LEVEL > 0
-
+*****************************************************************************/
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
     datum stZipValue;
     int iRet;
 
-    iRet = ndb_hash_store(iDirId, stKey, stValue);
+    iRet = ndb_hash_store(stKey, stValue);
 
     stZipValue = ndb_datum_compress(stValue);
     if(NULL == stZipValue.dptr)
@@ -120,18 +269,33 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
     return iRet;
 }
 
-static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
-{
-    datum stUnZipValue;
-    int iRet = NDB_FAILED;
+/*****************************************************************************
+    Func Name: ndb_fetch
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据
+        Input: int iDirId, datum stKey
+       Output:
+       Return: 获取到的数据
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
-    stUnZipValue = ndb_datum_decompress(stValue);
-    if(NULL != stUnZipValue.dptr)
+*****************************************************************************/
+datum ndb_fetch (int iDirId, datum stKey)
+{
+    datum stZipValue, stValue;
+
+    stZipValue = ndb_ldap_fetch(iDirId, stKey);
+    stValue = ndb_datum_decompress(stZipValue);
+
+    if(NULL != stZipValue.dptr)
     {
-        iRet = ndb_hash_store(iDirId, stKey, stUnZipValue);
-        free(stUnZipValue.dptr);
+        free(stZipValue.dptr);
     }
-    return iRet;
+    return stValue;
 }
 
 #endif
@@ -141,7 +305,21 @@ static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelf
 
 #define NDB_BLKSIZE             16
 
-/* 将指针向后移动到非0处,最多跳过255个0 */
+/*****************************************************************************
+    Func Name: _passZeroBytes
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 将指针向后移动到非0处,最多跳过255个0
+        Input: const char **ppcData, int *piRestSize
+       Output:
+       Return: 0的数量
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
 {
     const char *pcData = *ppcData;
@@ -154,7 +332,21 @@ static unsigned char _passZeroBytes(const char **ppcData, int *piRestSize)
     return (unsigned char)uiI;
 }
 
-/* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
+/*****************************************************************************
+    Func Name: ndb_compress
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 压缩数据
+        Input: const char *pcInData, int iInSize, int *piOutSize
+       Output: 压缩的数据大小
+       Return: 压缩的数据
+      Caution: 返回的指针需调用者释放，适合用于很多连续的0的数据压缩
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 {
     const char *p = pcInData;
@@ -190,7 +382,21 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
     return pcRet;
 }
 
-/* 申请内存用来后面存放解压的数据 */
+/*****************************************************************************
+    Func Name: _mallocUnzipSpace
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 申请内存用来后面存放解压的数据
+        Input: const char *pcInData, int iInSize
+       Output: 无
+       Return: 分配的内存指针
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
 {
     int i, iSize = iInSize + 1;
@@ -203,7 +409,21 @@ static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
     return malloc(iSize);
 }
 
-/* 返回的指针需调用者释放 */
+/*****************************************************************************
+    Func Name: ndb_decompress
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 解压数据
+        Input: const char *pcInData, int iInSize, int *piOutSize
+       Output: 解压缩的数据大小
+       Return: 解压压缩的数据
+      Caution: 返回的指针需调用者释放，适合用于很多连续的0的数据压缩
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 {
     char *pcOut, *pcRet;
@@ -246,7 +466,21 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 /* 转义字符 */
 #define NDB_SPECIAL_CHAR                '\xEE'
 
-/* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
+/*****************************************************************************
+    Func Name: ndb_compress
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 压缩数据
+        Input: const char *pcInData, int iInSize, int *piOutSize
+       Output: 压缩的数据大小
+       Return: 压缩的数据
+      Caution: 返回的指针需调用者释放，适合用于很多连续的0的数据压缩
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 {
     char *pcOut, *pcRet;
@@ -284,6 +518,21 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
     return pcRet;
 }
 
+/*****************************************************************************
+    Func Name: _mallocUnzipSpace
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 申请内存用来后面存放解压的数据
+        Input: const char *pcInData, int iInSize
+       Output: 无
+       Return: 分配的内存指针
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
 {
     int iSize = iInSize;
@@ -300,7 +549,21 @@ static char *_mallocUnzipSpace(const char *pcInData, int iInSize)
     return malloc(iSize);
 }
 
-/* 返回的指针需调用者释放 */
+/*****************************************************************************
+    Func Name: ndb_decompress
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 解压数据
+        Input: const char *pcInData, int iInSize, int *piOutSize
+       Output: 解压缩的数据大小
+       Return: 解压压缩的数据
+      Caution: 返回的指针需调用者释放，适合用于很多连续的0的数据压缩
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
 {
     char *pcRet, *pcOut;

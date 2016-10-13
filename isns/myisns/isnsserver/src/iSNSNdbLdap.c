@@ -20,6 +20,21 @@ static LDAPMessage *g_pstRes = NULL;
 static LDAPMessage *g_pstE = NULL;
 
 
+/*****************************************************************************
+    Func Name: _ldap_IsDnExist
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 判断DN是否存在
+        Input: LDAP *pstLd, const char *pcDN
+       Output: 成功/失败
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static short _ldap_IsDnExist(LDAP *pstLd, const char *pcDN)
 {
     short bRet;
@@ -35,7 +50,24 @@ static short _ldap_IsDnExist(LDAP *pstLd, const char *pcDN)
     return bRet;
 }
 
-static int _ldap_set_string_attr(LDAPMod **pstAttr,
+/*****************************************************************************
+    Func Name: _ldap_set_string_attr
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 设置ldap属性中的字符串
+        Input: LDAPMod **pstAttr,
+               const char *pcAttrValue,
+               const char *pcAttrName
+       Output:
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static int _ldap_set_string_attr(LDAPMod **ppstAttr,
                                  const char *pcAttrValue,
                                  const char *pcAttrName)
 {
@@ -79,15 +111,29 @@ static int _ldap_set_string_attr(LDAPMod **pstAttr,
     pstMod->mod_values = ppcVals;
     pstMod->mod_type = pcAttrNameTmp;
 
-    *pstAttr = pstMod;
+    *ppstAttr = pstMod;
 
     return NDB_SUCCESS;
 }
 
-/* string指针数组的内存释放 */
-static void _ldap_ModStrings_free(char ***pppStrings)
+/*****************************************************************************
+    Func Name: _ldap_ModStrings_free
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: string指针数组的内存释放
+        Input: char ***pppStrings
+       Output:
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static void _ldap_ModStrings_free(char ***pppcStrings)
 {
-    char **ppStrings = *pppStrings;
+    char **ppStrings = *pppcStrings;
     int i;
 
     if(NULL == ppStrings)
@@ -102,10 +148,24 @@ static void _ldap_ModStrings_free(char ***pppStrings)
     }
 
     free(ppStrings);
-    *pppStrings = NULL;
+    *pppcStrings = NULL;
 }
 
-/* bValue指针数组的内存释放 */
+/*****************************************************************************
+    Func Name: _ldap_ModBvalues_free
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: bValue指针数组的内存释放
+        Input: struct berval ***pppstData
+       Output:
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static void _ldap_ModBvalues_free(struct berval ***pppstData)
 {
     struct berval **ppstData = *pppstData;
@@ -134,7 +194,21 @@ static void _ldap_ModBvalues_free(struct berval ***pppstData)
     return;
 }
 
+/*****************************************************************************
+    Func Name: _ldap_attrs_free
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 属性值的内存释放
+        Input: LDAPMod **ppstAttrs
+       Output:
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
 
+*****************************************************************************/
 static void _ldap_attrs_free(LDAPMod **ppstAttrs)
 {
     LDAPMod *pstAttr;
@@ -170,6 +244,21 @@ static void _ldap_attrs_free(LDAPMod **ppstAttrs)
     return;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_CheckLdapInit
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 属性值的内存释放
+        Input: LDAPMod **ppstAttrs
+       Output:
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static int _ndb_CheckLdapInit()
 {
     if(NULL == g_pstLDAP || NULL == g_pcBase)
@@ -180,7 +269,21 @@ static int _ndb_CheckLdapInit()
     return NDB_SUCCESS;
 }
 
-/* 输入字符串以%x开头 */
+/*****************************************************************************
+    Func Name: _ndb_HexStr2Bin_Alloc
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 输入字符串以%x开头
+        Input: const char *pcHexStr, int *piDataSize
+       Output: 输出数据的长度
+       Return: 二进制数据
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_ndb_HexStr2Bin_Alloc(const char *pcHexStr, int *piDataSize)
 {
     const char *pcPtr = pcHexStr;
@@ -210,7 +313,21 @@ static char *_ndb_HexStr2Bin_Alloc(const char *pcHexStr, int *piDataSize)
     return pcBinData;
 }
 
-/* 返回数据指针，长度 */
+/*****************************************************************************
+    Func Name: _ldap_GetValByDn
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 输入字符串以%x开头
+        Input: LDAP *pstLd, const char *pcDN, int *piDataSize
+       Output: 返回数据长度
+       Return: 返回数据指针
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_ldap_GetValByDn(LDAP *pstLd, const char *pcDN, int *piDataSize)
 {
     LDAPMessage *pstRes, *pstFirst;
@@ -245,6 +362,21 @@ static char *_ldap_GetValByDn(LDAP *pstLd, const char *pcDN, int *piDataSize)
     return pcData;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_MsgCacheFree
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 释放消息内存
+        Input: 无
+       Output: 无
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static void _ndb_MsgCacheFree()
 {
     if(NULL != g_pstRes)
@@ -257,12 +389,41 @@ static void _ndb_MsgCacheFree()
     return;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_DirId2DirName
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 转换为dirname
+        Input: 无
+       Output: 无
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static int _ndb_DirId2DirName(int iDirId, char *pcDirName, int iSize)
 {
     return snprintf(pcDirName, iSize, "%d", iDirId);
 }
 
-/* 以%x开头 */
+/*****************************************************************************
+    Func Name: _ndb_Bin2HexStr_Alloc
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 二进制转BCD码
+        Input: 无
+       Output: 无
+       Return: 无
+      Caution: 以%x开头
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_ndb_Bin2HexStr_Alloc(void *pData, int iByteSize)
 {
     char *pcRet, *pcPtr;
@@ -288,6 +449,21 @@ static char *_ndb_Bin2HexStr_Alloc(void *pData, int iByteSize)
     return pcRet;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_DnName_Alloc
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 根据dirId和KEY得到dn
+        Input: int iDirId, const datum *pstKey
+       Output: 无
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_ndb_DnName_Alloc(int iDirId, const datum *pstKey)
 {
     char *pcRet, *pcHexStr;
@@ -325,6 +501,21 @@ static char *_ndb_DnName_Alloc(int iDirId, const datum *pstKey)
     return pcRet;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_FreePointer
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 释放指针
+        Input: void **ppPtr
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static void _ndb_FreePointer(void **ppPtr)
 {
     void *pReal;
@@ -389,6 +580,21 @@ int ndb_ldap_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPa
 
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_set_dir
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 设置多个数据目录，目录编号从0开始，不同目录数据隔开存放
+        Input:
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static int _ndb_ldap_store_dir(int iDirId)
 {
     LDAPMod *apstAttrs[] = { NULL, NULL, NULL };
@@ -485,6 +691,21 @@ void ndb_ldap_close()
     return;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_store_sns
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 保存数据
+        Input: const char *pcDn, const char *pcKey, const char *pcValue
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcValue)
 {
     LDAPMod *apstAttrs[NDB_ATTR_NUM_MAX + 1] = { 0 };
@@ -526,7 +747,7 @@ static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcVal
  Date Created: 2016/10/8
        Author: liangjinchao@dian
   Description: 保存数据
-        Input:
+        Input: int iDirId, datum stKey, datum stValue, int iFlag
        Output:
        Return:
       Caution:
@@ -580,7 +801,7 @@ int ndb_ldap_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
  Date Created: 2016/10/8
        Author: liangjinchao@dian
   Description: 获取数据
-        Input:
+        Input: int iDirId, datum stKey
        Output:
        Return:
       Caution:
@@ -613,6 +834,21 @@ datum ndb_ldap_fetch (int iDirId, datum stKey)
     return stRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_fetch_sns
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据
+        Input: int iDirId, datum stKey, void *pDst
+       Output: 复制到pDst
+       Return:
+      Caution: 复制到pDst
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 datum ndb_ldap_fetch_sns (int iDirId, datum stKey, void *pDst)
 {
     datum stValue;
@@ -623,6 +859,21 @@ datum ndb_ldap_fetch_sns (int iDirId, datum stKey, void *pDst)
     return stValue;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_delete
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 删除数据
+        Input: int iDirId, datum stKey
+       Output: 成功失败
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 int ndb_ldap_delete (int iDirId, datum stKey)
 {
     char *pcDn;
@@ -649,6 +900,21 @@ int ndb_ldap_delete (int iDirId, datum stKey)
     return iRet;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_AllocRdnDataByDn
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 通过DN得到RDN
+        Input: const char *pcDn, int *piDataSize
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static char *_ndb_AllocRdnDataByDn(const char *pcDn, int *piDataSize)
 {
     char **ppcRdn;
@@ -663,6 +929,21 @@ static char *_ndb_AllocRdnDataByDn(const char *pcDn, int *piDataSize)
     return pcBinData;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_firstkey
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取dir下面的第一个key
+        Input: int iDirId
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 datum ndb_ldap_firstkey (int iDirId)
 {
     char *pcDirDn, *pcDn;
@@ -706,6 +987,21 @@ datum ndb_ldap_firstkey (int iDirId)
     return stRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_nextkey
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取dir下面的第一个key
+        Input: int iDirId, const char *pcDnInput
+       Output: 下一个key
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static datum _ndb_GetNextKey(int iDirId, const char *pcDnInput)
 {
     char *pcDirDn, *pcDnTmp;
@@ -764,6 +1060,21 @@ static datum _ndb_GetNextKey(int iDirId, const char *pcDnInput)
     return stRet;
 }
 
+/*****************************************************************************
+    Func Name: _ndb_GetNextKey_Fast
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 快速获取dir下面的第一个key
+        Input:
+       Output: 下一个key
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 static datum _ndb_GetNextKey_Fast()
 {
     datum stRet;
@@ -786,6 +1097,21 @@ static datum _ndb_GetNextKey_Fast()
     return stRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_nextkey
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取dir下面的第一个key
+        Input: int iDirId, datum stKey
+       Output: 下一个key
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 datum ndb_ldap_nextkey (int iDirId, datum stKey)
 {
     datum stRet;
@@ -814,6 +1140,21 @@ datum ndb_ldap_nextkey (int iDirId, datum stKey)
     return stRet;
 }
 
+/*****************************************************************************
+    Func Name: ndb_ldap_scan_dir
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 遍历某个DIR下面的所有数据
+        Input: int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData
+       Output:
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
 int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
 {
     LDAPMessage *pstRes, *pstEntry;
@@ -874,6 +1215,7 @@ int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
         free(stKey.dptr);
     }
 
+    ldap_msgfree(pstRes);
     return NDB_SUCCESS;
 }
 

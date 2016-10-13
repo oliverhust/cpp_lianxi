@@ -4,34 +4,14 @@
 #include <limits.h>
 #include <string.h>
 
+#include "iSNStypes.h"
 #include "iSNSNdb.h"
 #include "iSNShash.h"
 #include "iSNSNdbLdap.h"
 
 int ndbm_errno = 0;
 
-
-/*****************************************************************************
-    Func Name: _ndb_recover_data
- Date Created: 2016/10/8
-       Author: liangjinchao@dian
-  Description: 数据恢复的回调函数
-        Input: datum stKey  数据的KEY
-               datum stValue 数据的VALUE
-               void *pSelfData 私有数据
-       Output: 无
-       Return: 是否终止遍历
-      Caution:
-------------------------------------------------------------------------------
-  Modification History
-  DATE        NAME             DESCRIPTION
-  --------------------------------------------------------------------------
-
-*****************************************************************************/
-static int _ndb_recover_data(datum stKey, datum stValue, void *pSelfData)
-{
-    return ndb_hash_store(stKey, stValue);
-}
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData);
 
 /*****************************************************************************
     Func Name: ndb_init
@@ -141,10 +121,8 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 *****************************************************************************/
 int ndb_delete (int iDirId, datum stKey)
 {
-    int iRet = NDB_SUCCESS;
-    iRet |= ndb_hash_delete(iDirId, stKey);
-    iRet |=  ndb_ldap_delete(iDirId, stKey);
-    return iRet;
+    (void)ndb_hash_delete(iDirId, stKey);
+    return ndb_ldap_delete(iDirId, stKey);
 }
 
 /*****************************************************************************
@@ -187,6 +165,26 @@ datum ndb_nextkey (int iDirId, datum stKey)
     return ndb_hash_nextkey(iDirId, stKey);
 }
 
+/*****************************************************************************
+    Func Name: ndb_fetch
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 获取数据
+        Input: int iDirId, datum stKey
+       Output: 
+       Return: 获取到的数据
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+datum ndb_fetch (int iDirId, datum stKey)
+{
+    return ndb_hash_fetch(iDirId, stKey);
+}
+
 
 #if NDB_DATA_COMPRESS_LEVEL == 0
 
@@ -208,19 +206,22 @@ datum ndb_nextkey (int iDirId, datum stKey)
 int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 {
     int iRet;
-    iRet = ndb_hash_store(stKey, stValue);
+
+    iRet = ndb_hash_store(iDirId, stKey, stValue);
     iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
     return iRet;
 }
 
 /*****************************************************************************
-    Func Name: ndb_fetch
+    Func Name: _ndb_recover_data
  Date Created: 2016/10/8
        Author: liangjinchao@dian
-  Description: 获取数据
-        Input: int iDirId, datum stKey
-       Output:
-       Return: 获取到的数据
+  Description: 数据恢复的回调函数
+        Input: datum stKey  数据的KEY
+               datum stValue 数据的VALUE
+               void *pSelfData 私有数据
+       Output: 无
+       Return: 是否终止遍历
       Caution:
 ------------------------------------------------------------------------------
   Modification History
@@ -228,12 +229,12 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-datum ndb_fetch (int iDirId, datum stKey)
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
 {
-    return ndb_hash_fetch(iDirId, stKey);
+    return ndb_hash_store(iDirId, stKey, stValue);
 }
 
-#else NDB_DATA_COMPRESS_LEVEL > 0
+#elif NDB_DATA_COMPRESS_LEVEL > 0
 
 /*****************************************************************************
     Func Name: ndb_store_sns
@@ -255,7 +256,7 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
     datum stZipValue;
     int iRet;
 
-    iRet = ndb_hash_store(stKey, stValue);
+    iRet = ndb_hash_store(iDirId, stKey, stValue);
 
     stZipValue = ndb_datum_compress(stValue);
     if(NULL == stZipValue.dptr)
@@ -270,13 +271,15 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
 }
 
 /*****************************************************************************
-    Func Name: ndb_fetch
+    Func Name: _ndb_recover_data
  Date Created: 2016/10/8
        Author: liangjinchao@dian
-  Description: 获取数据
-        Input: int iDirId, datum stKey
-       Output:
-       Return: 获取到的数据
+  Description: 数据恢复的回调函数
+        Input: datum stKey  数据的KEY
+               datum stValue 数据的VALUE
+               void *pSelfData 私有数据
+       Output: 无
+       Return: 是否终止遍历
       Caution:
 ------------------------------------------------------------------------------
   Modification History
@@ -284,18 +287,18 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-datum ndb_fetch (int iDirId, datum stKey)
+static int _ndb_recover_data(int iDirId, datum stKey, datum stValue, void *pSelfData)
 {
-    datum stZipValue, stValue;
+    datum stUnZipValue;
+    int iRet = NDB_FAILED;
 
-    stZipValue = ndb_ldap_fetch(iDirId, stKey);
-    stValue = ndb_datum_decompress(stZipValue);
-
-    if(NULL != stZipValue.dptr)
+    stUnZipValue = ndb_datum_decompress(stValue);
+    if(NULL != stUnZipValue.dptr)
     {
-        free(stZipValue.dptr);
+        iRet = ndb_hash_store(iDirId, stKey, stUnZipValue);
+        free(stUnZipValue.dptr);
     }
-    return stValue;
+    return iRet;
 }
 
 #endif

@@ -29,6 +29,7 @@ datum ndb_ldap_fetch_sns (int iDirId, datum stKey, void *pDst);
 int ndb_ldap_delete (int iDirId, datum stKey);
 datum ndb_ldap_firstkey (int iDirId);
 datum ndb_ldap_nextkey (int iDirId, datum stKey);
+int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData);
 
 
 

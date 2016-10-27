@@ -41,6 +41,7 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
         return iRet;
     }
 
+    /*
     iRet = ndb_ldap_init(pcLdapUrl, pcAdminDn, pcPassword, pcBase);
     if(NDB_SUCCESS != iRet)
     {
@@ -49,11 +50,12 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
 
     iRet = ndb_ldap_dir_set(NDB_MAX_DIRS_COUNT);
 
-    /* 数据恢复到内存中 */
+    // 数据恢复到内存中
     for(iDir = 0; iDir < NDB_MAX_DIRS_COUNT; iDir++)
     {
         iRet |= ndb_ldap_scan_dir(iDir, _ndb_recover_data, NULL);
     }
+    */
 
     return iRet;
 }
@@ -76,7 +78,7 @@ int ndb_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPasswor
 void ndb_close()
 {
     ndb_hash_close();
-    ndb_ldap_close();
+    //ndb_ldap_close();
 }
 
 /*****************************************************************************
@@ -121,8 +123,7 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst)
 *****************************************************************************/
 int ndb_delete (int iDirId, datum stKey)
 {
-    (void)ndb_hash_delete(iDirId, stKey);
-    return ndb_ldap_delete(iDirId, stKey);
+    return ndb_hash_delete(iDirId, stKey);
 }
 
 /*****************************************************************************
@@ -171,7 +172,7 @@ datum ndb_nextkey (int iDirId, datum stKey)
        Author: liangjinchao@dian
   Description: 获取数据
         Input: int iDirId, datum stKey
-       Output: 
+       Output:
        Return: 获取到的数据
       Caution:
 ------------------------------------------------------------------------------
@@ -208,7 +209,7 @@ int ndb_store_sns (int iDirId, datum stKey, datum stValue, int iFlag)
     int iRet;
 
     iRet = ndb_hash_store(iDirId, stKey, stValue);
-    iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
+    //iRet |= ndb_ldap_store_sns(iDirId, stKey, stValue, iFlag);
     return iRet;
 }
 

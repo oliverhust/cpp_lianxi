@@ -5,7 +5,7 @@
 /* Modeled after ldap functions */
 
 /* 持久化数据的压缩级别，0为不压缩 */
-#define NDB_DATA_COMPRESS_LEVEL             2
+#define NDB_DATA_COMPRESS_LEVEL             0
 
 #define NDB_SUCCESS                         0
 #define NDB_FAILED                          (-1)
@@ -37,6 +37,8 @@ datum ndb_fetch_sns (int iDirId, datum stKey, void *pDst);
 int ndb_delete (int iDirId, datum stKey);
 datum ndb_firstkey (int iDirId);
 datum ndb_nextkey (int iDirId, datum stKey);
+
+#if NDB_DATA_COMPRESS_LEVEL
 
 /* 返回的指针需调用者释放，适合用于很多连续的0的数据压缩 */
 char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize);
@@ -70,6 +72,7 @@ static inline datum ndb_datum_decompress(datum stDatum)
     stNew.dptr = ndb_decompress(stDatum.dptr, stDatum.dsize, &stNew.dsize);
     return stNew;
 }
+#endif
 
 
 

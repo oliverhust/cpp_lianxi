@@ -1,34 +1,34 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 
@@ -91,7 +91,7 @@
 #define SNS_COS_SIZE          4
 #define PORT_TYPE_SIZE        1
 #define PORT_TYPE_PAD         3
-#define FC4_BITMAP_SIZE       32 
+#define FC4_BITMAP_SIZE       32
 #define FC4_TYPE_SIZE         1
 #define FC4_TYPE_PAD          3
 #define ZONE_BITMAP_SIZE      64
@@ -112,7 +112,7 @@
 #define  XID_BEGIN            0
 #define  XID_IN_PROGRESS      1
 #define  XID_END              2
-#define  SOIP_DB_Node_Id      0xFE 
+#define  SOIP_DB_Node_Id      0xFE
 
 #define ISNS_DD_MEMBER_ENABLE       (1)
 #define ISNS_DD_MEMBER_DISABLE      (0)
@@ -127,7 +127,7 @@
 #define ESI_PORT_SIZE         4
 #define ENTITY_TYPE_SIZE      4
 #define PORTAL_ID_SIZE        4
- 
+
 
 /*
  * Declaration of the attribute value structure.
@@ -247,21 +247,21 @@ typedef struct socket_ep {
 } ISNS_Socket_Ep;
 
 
-/* 
+/*
  * Definition of registration operational types.
  */
 typedef int OP_TYPE;
 
 /*
- * Definition of Database Key. 
- * 
+ * Definition of Database Key.
+ *
  */
 typedef enum {
 
       NODE_NAME_KEY = 1,
       PORT_NAME_KEY,
       ENTITY_ID_KEY,
-      PORTAL_ID_KEY,    
+      PORTAL_ID_KEY,
       DDS_ID_KEY,
       DD_ID_KEY,
       ISCSI_ID_KEY,
@@ -275,10 +275,10 @@ typedef enum {
 
 
 /*
- * Definition of Device Attribute Tags. SoIP device attributes 
- * are sent to the server in a UDP message and are encoded 
+ * Definition of Device Attribute Tags. SoIP device attributes
+ * are sent to the server in a UDP message and are encoded
  * in TLV format.
- * 
+ *
  */
 
 typedef enum {
@@ -380,7 +380,7 @@ typedef struct soip_entity_id {
 } SOIP_Entity_Id;
 
 /*
- * Definition of Node Name record stored in the SoIP 
+ * Definition of Node Name record stored in the SoIP
  * service database
  */
 typedef struct soip_node {
@@ -392,7 +392,7 @@ typedef struct soip_node {
     uint32_t          port_map;
 
    /*
-    * Store Port names their ip addresses 
+    * Store Port names their ip addresses
     */
     uint32_t          entity_index;
     SOIP_Port_Name    port_name[ MAX_PORTS_PER_NODE ];
@@ -407,7 +407,7 @@ typedef struct soip_node {
 
 
 /*
- * Definition of Port Name record stored in the SoIP 
+ * Definition of Port Name record stored in the SoIP
  * service database. It contains all attributes associated
  * with a port/device.
  */
@@ -460,7 +460,7 @@ typedef struct soip_port_list {
 #define SNS_MAP_SIZE      (SNS_PORTS_PER_LIST/32)
 
     uint32_t              num_entries;
-    uint32_t              bitmask[ SNS_MAP_SIZE ]; 
+    uint32_t              bitmask[ SNS_MAP_SIZE ];
     SOIP_Port_Name        port_name[ SNS_PORTS_PER_LIST ];
 
 } SOIP_Port_List;
@@ -641,7 +641,8 @@ typedef enum {
   DDS_DD_LIST,
   PORTAL_ENTITY_LIST,
   SCN_CALLBACK_LIST,
-  SCN_LIST
+  SCN_LIST,
+  DATA_LIST_MAX,
 } DATA_LIST_ID;
 
 #define LIST_KEY_SIZE (8)
@@ -677,7 +678,7 @@ typedef struct soip_db_entry {
 
     /*
      * The "data_type" field identifies the type of data
-     * stored in the iSNS database. This field is used 
+     * stored in the iSNS database. This field is used
      * during database lookups to identify the type of
      * data associated with a database key.
      */
@@ -686,7 +687,7 @@ typedef struct soip_db_entry {
     union {
         SOIP_Entity       entity;
         SOIP_Portal       portal;
-        SOIP_Portal_Group portal_group; 
+        SOIP_Portal_Group portal_group;
         SOIP_Fc_Node      ifcp_node;
         SOIP_Iscsi        scsi_node;
         SOIP_Ifcp         port;
@@ -694,7 +695,7 @@ typedef struct soip_db_entry {
         SOIP_Dd           dd;
         SOIP_Prot_Ver     prot_ver;
         SOIP_Node         node;
-        SOIP_Entity_Id    entity_idx;  
+        SOIP_Entity_Id    entity_idx;
         SOIP_ISCSI_Node_Id iscsi_idx;
         SOIP_DB_Portal    portal_idx;
         SOIP_DB_List      list;

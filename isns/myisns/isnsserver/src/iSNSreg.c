@@ -1,39 +1,39 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 /*
  * This file contains source code for registering objects with the
- * iSNS database. 
+ * iSNS database.
  *
  */
 #include "iSNS.h"
@@ -77,7 +77,7 @@ int Check_if_member_of_DD (char * id);
 static int Add_ISCSINode_Default_DD (SOIP_Iscsi *p_node);
 
 /*********************************************************************
-_SNSdbAddAttr 
+_SNSdbAddAttr
 
 Calls the more specific add routines.
 *********************************************************************/
@@ -163,7 +163,7 @@ ISNSdbAddAttr (ISNS_Msg_Descp * p_md, ISNS_Msg *rspMsg)
          case ISNS_ISCSI_CERT:
             regISCSIFlag = TRUE;
             break;
- 
+
          case ISNS_PORTAL_GROUP_ISCSI_NAME:
          case ISNS_PORTAL_GROUP_TAG:
          case ISNS_PORTAL_GROUP_PORT:
@@ -258,7 +258,7 @@ ISNSdbAddAttrPortal (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp
    PORTAL_LIST_ENTRY newPortalEntry;
    char              *p_iscsi_name;
    SOIP_DB_Portal    *p_idx;
-   
+
    __DEBUG (isns_reg_debug & 1, (Registering Portal));
 
    updateESIflag = FALSE;
@@ -406,7 +406,7 @@ ISNSdbAddAttrPortal (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp
          __DEBUG (isns_reg_debug & 1, (Obtain Portal ip_port:%i),p_portal->ip_port);
          p_portal->portal_index = ISNSGetNewPortalIdx();
 
-     p_portal->default_portal_tag = 1;  //DEFAULT portal_tag 
+     p_portal->default_portal_tag = 1;  //DEFAULT portal_tag
 
          memset (&entry3, 0, sizeof(SOIP_DB_Entry));
          p_idx = &entry3.data.portal_idx;
@@ -535,7 +535,7 @@ ISNSdbAddAttrPortal (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp
                memset (p_portal->sym_name, 0, attr->len);
                __ISNS_COPY (p_portal->sym_name, sizeof(p_portal->sym_name), &attr->val, attr->len);
 
-               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_PORTAL_SYM_NAME, 
+               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_PORTAL_SYM_NAME,
                               PAD4(strlen(p_portal->sym_name)), p_portal->sym_name, 0 );
 
                updateFlag = TRUE;
@@ -650,7 +650,7 @@ ISNSdbAddAttrPortal (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp
 
       __DEBUG (isns_reg_debug &1,end of loop);
    }
-   
+
    __DEBUG (isns_reg_debug &1,return);
    return (ISNS_NO_ERR);
 }
@@ -678,7 +678,7 @@ ISNSdbAddAttrPortalGroup (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_
    int               stopFlag = FALSE;
    int               portal_tag = 1;
    int               newPortalGroupRegFlag;
-   
+
    __DEBUG (isns_reg_debug & 1, (Registering Portal Group));
 
    newPortalGroupRegFlag = FALSE;
@@ -822,7 +822,7 @@ ISNSdbAddAttrPortalGroup (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_
          __DEBUG (isns_reg_debug &1,(Portal Group iscsi_name:%s),db_portal_group.id.v);
 
          saveIndex = 0;
-      
+
          /* Find portal_tag value */
          stopFlag = FALSE;
          for ( ii = 0; (ii < SNS_MAX_ATTRS) && attr_indx[ii] && !stopFlag; ii++ )
@@ -908,13 +908,13 @@ ISNSdbAddAttrPortalGroup (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_
 
       __DEBUG (isns_reg_debug &1,end of loop);
    }
-   
+
    __DEBUG (isns_reg_debug &1, End of AddAttrPortalGroup);
    return (ISNS_NO_ERR);
 }
 
 /*********************************************************************
-_SNSdbAddAttrDDS 
+_SNSdbAddAttrDDS
 
 Adds one or more DDS(s) to the database.
 *********************************************************************/
@@ -1108,7 +1108,7 @@ ISNSdbAddAttrDDS ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg )
                   p_dds->status=*(uint32_t *)&attr->val;
                   status_changed_flag = TRUE;
                   updateFlag = TRUE;
-                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DDS_STATUS, ISNS_DDS_STATUS_SIZE, 
+                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DDS_STATUS, ISNS_DDS_STATUS_SIZE,
                                  NULL, p_dds->status );
                }
                break;
@@ -1288,7 +1288,7 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       }
       else
       {
-         /* Generate a Unique DD_ID, or retrieve the id of a dd 
+         /* Generate a Unique DD_ID, or retrieve the id of a dd
             with the same symbolic name. */
          newKey.len = 4;
 
@@ -1386,7 +1386,7 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
                   }
                   strncpy ( p_dd->sym_name, (char *)&attr->val, sizeof(p_dd->sym_name) );
 
-                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_SYM_NAME, 
+                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_SYM_NAME,
                                  attr->len, (char *)&attr->val, 0 );
 
                   updateFlag = TRUE;
@@ -1403,7 +1403,7 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
             {
                s = Add_DD_to_ISCSI_Node ( p_dd, (char *)&attr->val );
 
-               Add_DD_Member ( p_dd, (char *) &attr->val, 
+               Add_DD_Member ( p_dd, (char *) &attr->val,
                   PAD4( strlen((char *)&attr->val) ),  ISNS_DD_ISCSI_MEMBER,
                   s == ISNS_NO_ERR?ISNS_DD_MEMBER_ENABLE:ISNS_DD_MEMBER_DISABLE, iscsi_idx);
 
@@ -1462,7 +1462,7 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
 /*********************************************************************
 *********************************************************************/
 int
-Add_DD_Member ( SOIP_Dd * p_dd, char * p_node_name, int p_len, uint32_t type, 
+Add_DD_Member ( SOIP_Dd * p_dd, char * p_node_name, int p_len, uint32_t type,
                 uint32_t status, uint32_t index )
 {
    ISNS_LIST_NODE *pnode;
@@ -1479,12 +1479,12 @@ Add_DD_Member ( SOIP_Dd * p_dd, char * p_node_name, int p_len, uint32_t type,
    if ( rval != SUCCESS)
    {
         index_number = index;
-   } 
+   }
    else
    {
       index_number = p_node->iscsi_index;
    }
-   
+
    pnode = NULL;
    while ((pnode = GetNextNode(&p_dd->member_list, pnode)))
    {
@@ -1598,7 +1598,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
    /* don't de-register it */
    if ( (rval == SUCCESS) && (p_md->msg.hdr.flags & ISNS_FLAG_REPLACE_REG) )
    {
-       if ( p_entity->node_type == node_type) 
+       if ( p_entity->node_type == node_type)
        {
          __DEBUG (isns_reg_debug &1, RemoveEntity);
          ISNSdbRemoveAttrEntityEntry (db_entity_id.id, NULL, NULL);
@@ -1640,7 +1640,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
    }
    p_entity->timestamp.t_time = time (&t);
 
-   __DEBUG (isns_reg_debug &1,nodecount:%i,p_entity->iscsi_node_list.node_count);
+   //__DEBUG (isns_reg_debug &1,nodecount:%i,p_entity->iscsi_node_list.node_count);
 
    updateFlag = FALSE;
    for (ii = 0; (ii < SNS_MAX_ATTRS) && (attr_indx[ ii ]); ii++)
@@ -1667,7 +1667,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
             updateFlag = TRUE;
             break;
          case ISNS_PROT_VER:
-         {  
+         {
             if (attr->val.prot_ver.ver_max < attr->val.prot_ver.ver_min)
             {
                __DEBUG (isns_reg_debug & 1, (Version incorrect));
@@ -1686,7 +1686,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                updateFlag = TRUE;
             }
             break;
-         }  
+         }
          case ISNS_ENTITY_CERT:
             AddCert ( &p_entity->ptr_cert, (int *)&p_entity->cert_size,
                       &attr->val, attr->len );
@@ -1777,7 +1777,7 @@ ISNSdbAddAttrNode (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp *
          return (ERROR);
       }
 
-      /* 
+      /*
        * Set the node name to be unique for db fetch
        */
 
@@ -1799,7 +1799,7 @@ ISNSdbAddAttrNode (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp *
          /* create a new node element */
          memset (&entry, 0, sizeof (SOIP_DB_Entry));
          memset (&entry.data.node.node_ipa, SNS_UNREGISTERED, NODE_IPA_SIZE);
-         __ISNS_COPY (entry.data.node.node_name.v, sizeof(entry.data.node.node_name.v), 
+         __ISNS_COPY (entry.data.node.node_name.v, sizeof(entry.data.node.node_name.v),
                  db_node_name.v, ISNS_NODE_NAME_SIZE);
          InitList(FCP_PORTAL_LIST, p_node);
 
@@ -2025,12 +2025,12 @@ SNSdbAddAttrPort (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp * 
             break;
 
          case ISNS_FABRIC_PORT_NAME:
-            __ISNS_COPY (&p_ifcp_node->fabric_port_name.v, sizeof(p_ifcp_node->fabric_port_name.v), 
+            __ISNS_COPY (&p_ifcp_node->fabric_port_name.v, sizeof(p_ifcp_node->fabric_port_name.v),
                     &attr->val.fabric_port_name.v, PORT_NAME_SIZE);
             break;
 
          case ISNS_NODE_NAME:
-            __ISNS_COPY (&p_ifcp_node->node_name.v, sizeof(p_ifcp_node->node_name.v), 
+            __ISNS_COPY (&p_ifcp_node->node_name.v, sizeof(p_ifcp_node->node_name.v),
                     &attr->val.node_name.v, ISNS_NODE_NAME_SIZE);
 
             /* Update the FC NODE. */
@@ -2039,12 +2039,12 @@ SNSdbAddAttrPort (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp * 
             break;
 
          case ISNS_FC_PORT_IP:
-            __ISNS_COPY (p_ifcp_node->ip_addr.v, sizeof(p_ifcp_node->ip_addr.v), 
+            __ISNS_COPY (p_ifcp_node->ip_addr.v, sizeof(p_ifcp_node->ip_addr.v),
                     &attr->val, ISNS_IP_SIZE);
             break;
 
          case ISNS_FC_HARD_ADDR:
-            __ISNS_COPY (&p_ifcp_node->hard_addr.v, sizeof(p_ifcp_node->hard_addr.v), 
+            __ISNS_COPY (&p_ifcp_node->hard_addr.v, sizeof(p_ifcp_node->hard_addr.v),
                     &attr->val.hard_addr.v, HARD_ADDR_SIZE);
             break;
 
@@ -2116,7 +2116,7 @@ SNSdbAddAttrPort (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp * 
             memset (&entry2, 0, sizeof (entry2));
             memset (&entry2.data.node.node_ipa, SNS_UNREGISTERED,
                     NODE_IPA_SIZE);
-            __ISNS_COPY (entry2.data.node.node_name.v, sizeof(entry2.data.node.node_name.v), 
+            __ISNS_COPY (entry2.data.node.node_name.v, sizeof(entry2.data.node.node_name.v),
                     db_node_name.v, ISNS_NODE_NAME_SIZE);
 
          }
@@ -2305,7 +2305,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
             return ( ISNS_UNKNOWN_ERR );
          }
 
-         __DEBUG (isns_reg_debug &1,iscsi_node_count:%i,p_entity->iscsi_node_list.node_count);
+         //__DEBUG (isns_reg_debug &1,iscsi_node_count:%i,p_entity->iscsi_node_list.node_count);
 
          /* Insert into iscsi_node_list */
          if (!FindNode( &p_entity->iscsi_node_list, p_node->id.v, PAD4(strlen (p_node->id.v)) ))
@@ -2343,7 +2343,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                if ( p_node->type != *(uint32_t *)&attr->val )
                {
                   p_node->type = *(uint32_t *)&attr->val;
-                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_TYPE, 
+                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_TYPE,
                                  ISNS_ISCSI_TYPE_SIZE, NULL, p_node->type );
                   updateFlag = TRUE;
                }
@@ -2356,7 +2356,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                {
                   strncpy( p_node->alias, (char *)&attr->val, sizeof(p_node->alias) );
                   p_node->alias_len = safe_len;
-                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_ALIAS, 
+                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_ALIAS,
                                  PAD4(strlen(p_node->alias)), p_node->alias, 0);
                   updateFlag = TRUE;
                }
@@ -2368,7 +2368,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                {
                   p_node->scn_bitmap = *(uint32_t *)&attr->val;
 
-                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP, 
+                  ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP,
                                  ISNS_SCN_BITMAP_SIZE, NULL, p_node->scn_bitmap );
                   updateFlag = TRUE;
                }
@@ -2594,7 +2594,7 @@ int Check_if_member_of_DD (char * id)
    return SUCCESS;
 }
 /*********************************************************************
-_Add_DD_to_ISCSI_Node 
+_Add_DD_to_ISCSI_Node
 Adds the DD to the iSCSI Node's DD list.
 *********************************************************************/
 int
@@ -2860,7 +2860,7 @@ ISNS_RegisterSCNCallback ( ISNS_Msg_Descp *p_md)
    attr = (ISNS_Attr *)attr_indx[ cbIdx ];
    func = attr->val.scn_callback;
 
-   rval = ISNSAddSCNCallbackEntry((char *)&((ISNS_Key *)key_indx[ 0 ])->val, 
+   rval = ISNSAddSCNCallbackEntry((char *)&((ISNS_Key *)key_indx[ 0 ])->val,
        ((ISNS_Key *)key_indx[ 0 ])->tag, ((ISNS_Key *)key_indx[ bitmapIdx ])->tag, func);
 
    return (rval);
@@ -3003,14 +3003,14 @@ Activate_DD_Membership (uint32_t type, void *p_node)
                ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_NODE_ID, PAD4(strlen(p_member->node_id)),
                               (char *)p_member->node_id, 0);
 
-               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP, 
+               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP,
                               ISNS_SCN_BITMAP_SIZE, NULL, ISNS_SCN_MEMBER_ADDED);
                break;
             case ISNS_DD_IFCP_MEMBER:
                ISNSAppendKey( p_scn_all_msg_buffer, ISNS_PORT_NAME, ISNS_PORT_NAME_SIZE,
                               (char *)p_member->node_id, 0);
 
-               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_IFCP_SCN_BITMAP, 
+               ISNSAppendKey( p_scn_all_msg_buffer, ISNS_IFCP_SCN_BITMAP,
                               ISNS_SCN_BITMAP_SIZE, NULL, ISNS_SCN_MEMBER_ADDED);
                break;
             default:
@@ -3126,7 +3126,7 @@ change_dd_member_active_flag( SOIP_Dd *p_dd )
                return rval;
 
             old_activeFlag = p_node->activeFlag;
-            
+
             if ( p_dd->activeFlag )
             {
                p_node->activeFlag = TRUE;
@@ -3181,7 +3181,7 @@ ISNS_GetDD_ID_from_sym ( char *p_sym )
 
       while (SNSdbGetNextOfKey (&qkey) == SUCCESS)
       {
-         /* If a symbolic name is given, 
+         /* If a symbolic name is given,
             search for any entries that
             has that dd, return that DD */
          rval = read_DDObject(qkey.val.dd_key.id, &p_dd, &lentry);

@@ -4,7 +4,7 @@
                             basetype.h
   Project Code: Comware Leopard
    Module Name:
-  Date Created: 2008-4-2 
+  Date Created: 2008-4-2
         Author: c02254
    Description: This file defines all basic data type used in comware
 
@@ -12,7 +12,7 @@
   Modification History
   DATE        NAME             DESCRIPTION
   --------------------------------------------------------------------------
-                                                                             
+
 *****************************************************************************/
 
 #ifndef _SYS_BASETYPE_H_
@@ -135,7 +135,7 @@ typedef USHORT  BOOL_T;
 #define ZONE_ID USHORT
 #endif
 
-typedef void * LPVOID;
+//typedef void * LPVOID;
 
 typedef unsigned long long __attribute__((aligned(8)))  UINT64;
 typedef long long __attribute__((aligned(8)))           INT64;
@@ -187,16 +187,16 @@ typedef long long __attribute__((aligned(8)))           INT64;
 {\
     void __attribute__((warning(""#expr""))) __attribute__((unused)) __attribute__((visibility ("hidden"))) _StaticASSERT_##lineno(void); \
     _StaticASSERT_##lineno() ; \
-}    
-#define __innerSASSERTCORE(expr,num)    __innerSASSERTCORE2(expr,num) 
-#define ISSUASSERT(expr)                __innerSASSERTCORE(expr,__LINE__) 
-#define STATICASSERT(expr)              __innerSASSERTCORE(expr,__LINE__)     
+}
+#define __innerSASSERTCORE(expr,num)    __innerSASSERTCORE2(expr,num)
+#define ISSUASSERT(expr)                __innerSASSERTCORE(expr,__LINE__)
+#define STATICASSERT(expr)              __innerSASSERTCORE(expr,__LINE__)
 #else
 #define ISSUASSERT(expr)        LINT_ASSERT(expr)
 #define STATICASSERT(expr)      LINT_ASSERT(expr)
 #endif
 #define ISSU
-#define FROZEN_IMPL 
+#define FROZEN_IMPL
 
 
 #ifndef __KERNEL__
@@ -275,14 +275,14 @@ typedef enum tagPRIORITY_E
     PRIORITY_HIGHEST =      7       /* reserved */
 }PRIORITY_E;
 
-typedef struct tagDate 
-{                                                 
+typedef struct tagDate
+{
     UCHAR   ucDate;        /* 1-31  */
     UCHAR   ucMonth;       /* 1-12  */
     USHORT  usYear;        /* 1970- */
 }DATE_S;
 
-typedef struct tagTime 
+typedef struct tagTime
 {
     UCHAR   ucSecond;      /* 0-59  */
     UCHAR   ucMinute;      /* 0-59  */

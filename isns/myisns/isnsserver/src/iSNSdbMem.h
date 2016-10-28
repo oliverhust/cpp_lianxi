@@ -44,6 +44,16 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry);
 INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey);
 INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_Entry *pstEntry);
 
+INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord);
+INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList);
+VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList);
+INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode);
+VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize);
+ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList, IN CHAR *pdata, IN INT iDataSize);
+INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize);
+INT ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList);
+ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode);
+
 
 #endif
 

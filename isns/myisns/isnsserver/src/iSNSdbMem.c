@@ -26,6 +26,7 @@
 #include <sys/list.h>
 
 #include "iSNStypes.h"
+#include "iSNSList.h"
 #include "iSNSmsg.h"
 #include "iSNSdebug.h"
 #include "iSNSNdb.h"
@@ -76,14 +77,29 @@ STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemValue[ISNS_DATABASE_MAX] =
     [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_idx), sizeof(SOIP_DB_Portal)},
 };
 
+/* 十字链的位置信息 */
+STATIC const UINT g_auiIsnsListOffset[DATA_LIST_MAX] =
+{
+    [ISCSI_DD_LIST] = offsetof(SOIP_Iscsi, dd_id_list),
+    [ENTITY_PORTAL_LIST] = offsetof(SOIP_Entity, iportal_list),
+    [ENTITY_ISCSI_LIST] = offsetof(SOIP_Entity, iscsi_node_list),
+    [DD_MEMBER_LIST] = offsetof(SOIP_Dd, member_list),
+    [DD_DDS_LIST] = offsetof(SOIP_Dd, dds_list),
+    [DDS_DD_LIST] = offsetof(SOIP_Dds, dd_list),
+
+    [SCN_CALLBACK_LIST] = 0,
+    [SCN_LIST] = 0,
+};
+
+int isns_list_debug = 0;
 
 /*********************************************************************
      Func Name : _isns_FormatByKey
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : DB KEY 转 KEY
-         Input : 无
-        Output : 无
+         Input : IN const ISNS_DBKey *pstDbKey
+        Output : OUT datum *pstOutKey
         Return : 成功/失败
        Caution : 无
 ----------------------------------------------------------------------
@@ -130,8 +146,8 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : DB KEY 转 KEY, ENTRY 转 VALUE
-         Input : 无
-        Output : 无
+         Input : IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry
+        Output : OUT datum *pstOutKey,  OUT datum *pstOutValue
         Return : 成功/失败
        Caution : 无
 ----------------------------------------------------------------------
@@ -167,8 +183,8 @@ STATIC ULONG _isns_FormatByKeyValue(IN const ISNS_DBKey *pstDbKey, IN const SOIP
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : KEY 转 DB KEY
-         Input : 无
-        Output : 无
+         Input : IN UINT uiType, IN datum stKey
+        Output : OUT ISNS_DBKey *pstDbKey
         Return : 成功/失败
        Caution : 无
 ----------------------------------------------------------------------
@@ -212,8 +228,8 @@ STATIC ULONG _isns_Key2DbKey(IN UINT uiType, IN datum stKey, OUT ISNS_DBKey *pst
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : VALUE 转 ENTRY
-         Input : 无
-        Output : 无
+         Input : IN UINT uiType, IN datum stValue
+        Output : OUT SOIP_DB_Entry *pstEntry
         Return : 成功/失败
        Caution : 无
 ----------------------------------------------------------------------
@@ -249,7 +265,7 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
   Date Created : 2016/10/25
         Author : liangjinchao@dian
    Description : 初始化内存数据库
-         Input : UINT uiMaxTypeCount
+         Input : IN UINT uiMaxTypeCount
         Output : 无
         Return : 成功/失败
        Caution : 无
@@ -259,7 +275,7 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEM_Init(UINT uiMaxTypeCount)
+ULONG ISNS_MEM_Init(IN UINT uiMaxTypeCount)
 {
     return ISNS_MEMDATA_Init(uiMaxTypeCount);
 }
@@ -289,7 +305,7 @@ VOID ISNS_MEM_Fini()
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 保存数据到内存，如果已存在则覆盖
-         Input : 无
+         Input : IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry
         Output : 无
         Return : 成功/失败
        Caution : 无
@@ -323,7 +339,7 @@ INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry)
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 删除内存中的数据
-         Input : 无
+         Input : IN const ISNS_DBKey *pstDbKey
         Output : 无
         Return : 成功/失败
        Caution : 无
@@ -353,7 +369,7 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 读取内存中的数据
-         Input : 无
+         Input : IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry
         Output : 无
         Return : 成功/失败
        Caution : 调用者可以不填pstDbKey中的len
@@ -393,8 +409,8 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 获取下一个KEY
-         Input : 无
-        Output : 无
+         Input : INOUT ISNS_DBKey *pstDbKey
+        Output : INOUT ISNS_DBKey *pstDbKey
         Return : 是否要继续遍历
        Caution : 为兼容旧接口而写，如果有性能要求，不推荐调此接口来作遍历
                  如果要取第一个key，则pstDbKey->len置0
@@ -440,8 +456,8 @@ INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey)
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 迭代遍历接口
-         Input : 无
-        Output : 无
+         InOut : INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter
+        Output : OUT SOIP_DB_Entry *pstEntry
         Return : 是否要继续遍历
        Caution : ppIter为一个VOID *型指针(其值初始化为0)地址
                  eg: ISNS_DBKey key = { 0 };  key.tag = xxx;
@@ -495,6 +511,345 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
     return SUCCESS;
 }
 
+/*********************************************************************
+     Func Name : _isns_list_IsInit
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 判断列表是否初始化
+         Input : IN const ISNS_LIST *pstList
+        Output : 无
+        Return : YES/NO
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC INLINE BOOL_T _isns_list_IsInit(IN const ISNS_LIST *pstList)
+{
+    if(pstList->list_id <= 0 || pstList->list_id >= DATA_LIST_MAX ||
+       NULL == pstList->pstHead)
+    {
+        return BOOL_FALSE;
+    }
+    return BOOL_TRUE;
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_Init
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 初始化列表
+         Input : IN INT iListId, IN VOID *pRecord
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
+{
+    ISNS_LIST *pstList = NULL;
+
+    if(0 < iListId && iListId < DATA_LIST_MAX)
+    {
+        pstList = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId]);
+    }
+    else
+    {
+        __LOG_ERROR("Init List: Unknown list type %d", iListId);
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memset(pstList, 0, sizeof(ISNS_LIST));
+
+    pstList->pstHead = (DTQ_HEAD_S *)malloc(sizeof(DTQ_HEAD_S));
+    if(NULL == pstList->pstHead)
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+    DTQ_Init(pstList->pstHead);
+    pstList->list_id = iListId;
+
+    __DEBUG (isns_list_debug &1,InitList iListId:%i,pstList->list_id);
+
+    return ( SUCCESS );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_Free
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 删除/去初始化列表
+         Input : IN ISNS_LIST *pstList
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList)
+{
+    DTQ_HEAD_S *pstHead = pstList->pstHead;
+    ISNS_LIST_NODE *pstNode;
+
+    __DEBUG (isns_list_debug &1,DeleteList list_id:%i,pstList->list_id);
+
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+    if(NULL == pstList->pstHead)
+    {
+        return (SUCCESS);
+    }
+
+    DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
+    {
+        DTQ_Del(&pstNode->stNode);
+        free(pstNode->data);
+        free(pstNode);
+    }
+
+    free(pstList->pstHead);
+    pstList->pstHead = NULL;
+
+    return (SUCCESS);
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_GetParent
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 获取存放列表的外部结构体指针
+         Input : IN ISNS_LIST *pstList
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList)
+{
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        __LOG_ERROR ("List_GetParent: Not init, listId=%d", pstList->list_id);
+        return NULL;
+    }
+    return (VOID *)((UCHAR *)pstList - g_auiIsnsListOffset[pstList->list_id]);
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_RemoveNode
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 删除列表的一个节点
+         Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
+{
+    __DEBUG (isns_list_debug &1,Remove Node);
+
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    DTQ_Del(&pstNode->stNode);
+    free(pstNode->data);
+    free(pstNode);
+
+    return ( SUCCESS );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_GetNodeData
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 获取节点数据
+         Input : IN ISNS_LIST_NODE *pstNode, OUT INT *piSize
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+*********************************************************************/
+VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize)
+{
+    __DEBUG (isns_list_debug &1, GetNodeData);
+    if(NULL != piSize)
+    {
+        *piSize = pstNode->data_size;
+    }
+
+    return ( pstNode->data );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_FindNode
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 查找列表中的某个数据的节点
+         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
+        Output : 无
+        Return : 节点
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList,
+                                       IN CHAR *pdata, IN INT iDataSize)
+{
+    ISNS_LIST_NODE *pstNode;
+
+    __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
+
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        __LOG_ERROR ("Find Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
+        return NULL;
+    }
+
+    pstNode = NULL;
+
+    while ( (pstNode=GetNextNode(pstList, pstNode)) )
+    {
+        if (pstNode->data_size == iDataSize && !memcmp(pstNode->data, pdata, iDataSize))
+        {
+            return (pstNode);
+        }
+    }
+
+    return ( NULL );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_AddNode
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 添加一个数据到列表末尾
+         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize)
+{
+    ISNS_LIST_NODE *pstNode;
+
+    __DEBUG (isns_list_debug &1, AddNode - list_id:%i,pstList->list_id);
+
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        __LOG_ERROR ("Add Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
+    if(NULL == pstNode)
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
+    pstNode->data = (char *)malloc(iDataSize + 1);
+    if(NULL == pstNode->data)
+    {
+        free(pstNode);
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memcpy(pstNode->data, pcData, iDataSize);
+    ((CHAR *)pstNode->data)[iDataSize] = 0;
+    pstNode->data_size = iDataSize;
+    DTQ_AddTail(pstList->pstHead, &pstNode->stNode);
+
+    return ( SUCCESS );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_IsEmpty
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 判断列表是否为空
+         Input : IN ISNS_LIST *pstList
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
+{
+    if(NULL == pstList->pstHead || DTQ_IsEmpty(pstList->pstHead))
+    {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_GetNext
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 获取下一个节点
+         Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
+        Output : 无
+        Return : 下一个节点
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
+{
+    __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
+
+    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    {
+        __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
+        return NULL;
+    }
+
+    if(NULL == pstNode)
+    {
+        return DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
+    }
+    return DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+}
 
 
 

@@ -37,35 +37,8 @@
 #include "iSNSdb.h"
 #include "iSNSbuffer.h"
 #include "iSNSdebug.h"
+#include "iSNSdbMem.h"
 
-int isns_list_debug = 0;
-
-STATIC const UINT g_auiIsnsListOffset[DATA_LIST_MAX] =
-{
-    [ISCSI_DD_LIST] = offsetof(SOIP_Iscsi, dd_id_list),
-    [ENTITY_PORTAL_LIST] = offsetof(SOIP_Entity, iportal_list),
-    [ENTITY_ISCSI_LIST] = offsetof(SOIP_Entity, iscsi_node_list),
-    [DD_MEMBER_LIST] = offsetof(SOIP_Dd, member_list),
-    [DD_DDS_LIST] = offsetof(SOIP_Dd, dds_list),
-    [DDS_DD_LIST] = offsetof(SOIP_Dds, dd_list),
-
-    [SCN_CALLBACK_LIST] = 0,
-    [SCN_LIST] = 0,
-};
-
-
-/********************************************************************
-judge If the list is initialized
-********************************************************************/
-STATIC INLINE BOOL_T _list_IsInit(IN const ISNS_LIST *pstList)
-{
-    if(pstList->list_id <= 0 || pstList->list_id >= DATA_LIST_MAX ||
-       NULL == pstList->pstHead)
-    {
-        return BOOL_FALSE;
-    }
-    return BOOL_TRUE;
-}
 
 /********************************************************************
 Initializes a doubly linked list structure.  The linked list has a
@@ -74,31 +47,7 @@ dummy node at the head of the list.
 int
 InitList(int list_id, void * record)
 {
-    ISNS_LIST *pstList = NULL;
-
-    if(0 < list_id && list_id < DATA_LIST_MAX)
-    {
-        pstList = (ISNS_LIST *)((UCHAR *)record + g_auiIsnsListOffset[list_id]);
-    }
-    else
-    {
-        __LOG_ERROR("Init List: Unknown list type %d", list_id);
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memset(pstList, 0, sizeof(ISNS_LIST));
-
-    pstList->pstHead = (DTQ_HEAD_S *)malloc(sizeof(DTQ_HEAD_S));
-    if(NULL == pstList->pstHead)
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
-    DTQ_Init(pstList->pstHead);
-    pstList->list_id = list_id;
-
-    __DEBUG (isns_list_debug &1,InitList list_id:%i,pstList->list_id);
-
-    return ( SUCCESS );
+    return ISNS_MEM_List_Init(list_id, record);
 }
 
 /********************************************************************
@@ -107,31 +56,14 @@ Deletes/DeInit a list.
 int
 DeleteList(ISNS_LIST *pstList)
 {
-    DTQ_HEAD_S *pstHead = pstList->pstHead;
-    ISNS_LIST_NODE *pstNode;
+    INT iRet = SUCCESS;
 
-    __DEBUG (isns_list_debug &1,DeleteList list_id:%i,pstList->list_id);
+    /* 所有删除操作先从LDAP/DBM开始 */
+    //iRet |= ISNS_LDAP_List_Free(pstList);
 
-    if(BOOL_FALSE == _list_IsInit(pstList))
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
-    if(NULL == pstList->pstHead)
-    {
-        return (SUCCESS);
-    }
+    iRet |= ISNS_MEM_List_Free(pstList);
 
-    DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
-    {
-        DTQ_Del(&pstNode->stNode);
-        free(pstNode->data);
-        free(pstNode);
-    }
-
-    free(pstList->pstHead);
-    pstList->pstHead = NULL;
-
-    return (SUCCESS);
+    return iRet;
 }
 
 /********************************************************************
@@ -140,18 +72,14 @@ Removes a node from a list.
 int
 RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
-    __DEBUG (isns_list_debug &1,Remove Node);
+    INT iRet = SUCCESS;
 
-    if(BOOL_FALSE == _list_IsInit(pstList) || NULL == pstList->pstHead)
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
+    /* 删除操作先从LDAP/DBM开始 */
+    //iRet |= ISNS_LDAP_List_RemoveNode(pstList);
 
-    DTQ_Del(&pstNode->stNode);
-    free(pstNode->data);
-    free(pstNode);
+    iRet |= ISNS_MEM_List_RemoveNode(pstList, pstNode);
 
-    return ( SUCCESS );
+    return iRet;
 }
 
 /********************************************************************
@@ -160,8 +88,7 @@ Retrieves the data pointer from a node.
 void *
 GetNodeData(ISNS_LIST_NODE *pnode )
 {
-   __DEBUG (isns_list_debug &1, GetNodeData);
-   return ( pnode->data );
+   return ISNS_MEM_List_GetNodeData(pnode, NULL);
 }
 
 /********************************************************************
@@ -170,27 +97,7 @@ Finds an object in the list.
 ISNS_LIST_NODE *
 FindNode(ISNS_LIST *pstList, char *pdata, int data_size)
 {
-    ISNS_LIST_NODE *ptr;
-
-    __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
-
-    if(BOOL_FALSE == _list_IsInit(pstList))
-    {
-        __LOG_ERROR ("Find Node: Not init, listId=%d, dataSize=%d", pstList->list_id, data_size);
-        return NULL;
-    }
-
-    ptr = NULL;
-
-    while ( (ptr=GetNextNode(pstList, ptr)) )
-    {
-        if (ptr->data_size == data_size && !memcmp(ptr->data, pdata, data_size))
-        {
-            return (ptr);
-        }
-    }
-
-    return ( NULL );
+    return ISNS_MEM_List_FindNode(pstList, pdata, data_size);
 }
 
 /********************************************************************
@@ -199,39 +106,18 @@ Adds a node to a list.
 int
 AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
 {
-    ISNS_LIST_NODE *pstNode;
+    INT iRet;
 
-    __DEBUG (isns_list_debug &1, AddNode - list_id:%i,pstList->list_id);
-
-    if(BOOL_FALSE == _list_IsInit(pstList))
+    iRet = ISNS_MEM_List_AddNode(pstList, pdata, data_size);
+    if(SUCCESS != iRet)
     {
-        __LOG_ERROR ("Add Node: Not init, listId=%d, dataSize=%d", pstList->list_id, data_size);
-        return ISNS_UNKNOWN_ERR;
+        return iRet;
     }
-
-    pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
-    if(NULL == pstNode)
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
-    pstNode->data = (char *)malloc(data_size + 1);
-    if(NULL == pstNode->data)
-    {
-        free(pstNode);
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memcpy(pstNode->data, pdata, data_size);
-    ((CHAR *)pstNode->data)[data_size] = 0;
-    pstNode->data_size = data_size;
-    DTQ_AddTail(pstList->pstHead, &pstNode->stNode);
 
     /* ISNS_LDAP_List_AddNode(list_id, p_entry, pdata, data_size)
        添加时先添加到内存，删除时最后才从内存删除 */
 
-    return ( SUCCESS );
+    return iRet;
 }
 
 /********************************************************************
@@ -240,11 +126,7 @@ Returns true if the list is empty.
 int
 IsEmptyList(ISNS_LIST *pstList)
 {
-    if(NULL == pstList->pstHead || DTQ_IsEmpty(pstList->pstHead))
-    {
-        return TRUE;
-    }
-    return FALSE;
+    return ISNS_MEM_List_IsEmpty(pstList);
 }
 
 /********************************************************************
@@ -253,19 +135,7 @@ Returns the next node in a list.
 ISNS_LIST_NODE *
 GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
-    __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
-
-    if(BOOL_FALSE == _list_IsInit(pstList))
-    {
-        __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
-        return NULL;
-    }
-
-    if(NULL == pstNode)
-    {
-        return DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
-    }
-    return DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+    return ISNS_MEM_List_GetNext(pstList, pstNode);
 }
 
 

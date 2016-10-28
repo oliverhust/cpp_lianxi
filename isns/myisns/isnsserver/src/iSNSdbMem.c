@@ -33,11 +33,55 @@
 #include "iSNSMemData.h"
 
 
+typedef enum
+{
+    ISNS_MEM_INVALID = 0,
+    ISNS_MEM_BIN,      /* 二进制类型(数字/结构体) */
+    ISNS_MEM_STR,      /* 字符串类型(uiSize为最大空间) */
+    ISNS_MEM_TYPE_MAX,
+}ISNS_MEM_TYPE_E;
+
+typedef struct tagIsnsMemStruct
+{
+    ISNS_MEM_TYPE_E enType;
+    UINT uiOffset;
+    UINT uiSize;
+}ISNS_MEM_STRUCT_S;
+
+/* KEY类型，相对于ISNS_DBKey的位置，(最大)大小 */
+STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemKey[ISNS_DATABASE_MAX] =
+{
+    [ENTITY_ID_KEY] = {ISNS_MEM_STR, offsetof(ISNS_DBKey, val.entity_key.id), ENTITY_ID_SIZE},
+    [PORTAL_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.portal_key), sizeof(SOIP_Portal_Key)},
+    [DDS_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.dds_key.id), DDS_KEY_SIZE},
+    [DD_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.dd_key.id), DD_KEY_SIZE},
+    [ISCSI_ID_KEY] = {ISNS_MEM_STR, offsetof(ISNS_DBKey, val.iscsi_key.v), MAX_ISCSI_NODE_ID_SIZE},
+    [PORTAL_GROUP_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.portal_group_key), sizeof(SOIP_Portal_Group_Key)},
+    [ENTITY_IDX_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.idx), sizeof(SOIP_IDX_Key)},
+    [ISCSI_IDX_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.idx), sizeof(SOIP_IDX_Key)},
+    [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.idx), sizeof(SOIP_IDX_Key)},
+};
+
+/* VALUE类型，相对于SOIP_DB_Entry的位置，(最大)大小 */
+STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemValue[ISNS_DATABASE_MAX] =
+{
+    [ENTITY_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.entity), sizeof(SOIP_Entity)},
+    [PORTAL_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal), sizeof(SOIP_Portal)},
+    [DDS_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.dds), sizeof(SOIP_Dds)},
+    [DD_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.dd), sizeof(SOIP_Dd)},
+    [ISCSI_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.scsi_node), sizeof(SOIP_Iscsi)},
+    [PORTAL_GROUP_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_group), sizeof(SOIP_Portal_Group)},
+    [ENTITY_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.entity_idx), sizeof(SOIP_Entity_Id)},
+    [ISCSI_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.iscsi_idx), sizeof(SOIP_ISCSI_Node_Id)},
+    [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_idx), sizeof(SOIP_DB_Portal)},
+};
+
+
 /*********************************************************************
      Func Name : _isns_FormatByKey
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 保存数据到内存，如果已存在则覆盖
+   Description : DB KEY 转 KEY
          Input : 无
         Output : 无
         Return : 成功/失败
@@ -50,7 +94,7 @@
 *********************************************************************/
 STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutKey)
 {
-    ULONG ulRet = ERROR_SUCCESS;
+    const ISNS_MEM_STRUCT_S *pstMem;
     datum stKey = { 0 };
 
     if(NULL == pstDbKey)
@@ -59,64 +103,25 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
         return ERROR_SUCCESS;
     }
 
-    switch (pstDbKey->tag)
+    pstMem = &g_astIsnsMemKey[pstDbKey->tag];
+    if(pstMem->enType <= ISNS_MEM_INVALID || pstMem->enType >= ISNS_MEM_TYPE_MAX)
     {
-        case DDS_ID_KEY:
-        {
-            stKey.dptr = (char *)&pstDbKey->val.dds_key.id;
-            stKey.dsize = DDS_KEY_SIZE;
-            break;
-        }
-        case DD_ID_KEY:
-        {
-            stKey.dptr = (char *)&pstDbKey->val.dd_key.id;
-            stKey.dsize = DD_KEY_SIZE;
-            break;
-        }
-        case ISCSI_ID_KEY:
-        {
-            stKey.dptr = (char *)pstDbKey->val.node_key.v;
-            stKey.dsize = strlen(pstDbKey->val.node_key.v);
-            break;
-        }
-        case ENTITY_ID_KEY:
-        {
-            stKey.dptr = (char *)pstDbKey->val.entity_key.id;
-            stKey.dsize = strlen(pstDbKey->val.entity_key.id);
-            break;
-        }
-        case PORTAL_ID_KEY:
-        {
-            stKey.dptr = (char *)&pstDbKey->val.portal_key;
-            stKey.dsize = sizeof(SOIP_Portal_Key);
-            break;
-        }
-        case PORTAL_GROUP_ID_KEY:
-        {
-            stKey.dptr = (char *)&pstDbKey->val.portal_group_key;
-            stKey.dsize = sizeof(SOIP_Portal_Group_Key);
-            break;
-        }
-        /*  ###################  Index相关数据   ##################   */
-        case ENTITY_IDX_KEY:
-        case ISCSI_IDX_KEY:
-        case PORTAL_IDX_KEY:
-        {
-            stKey.dptr = (char *)&pstDbKey->val.idx;
-            stKey.dsize = sizeof(SOIP_IDX_Key);
-            break;
-        }
+        *pstOutKey = stKey;
+        return ERROR_FAILED;
+    }
 
-        default:
-        {
-            ulRet = ERROR_FAILED;
-            break;
-        }
+    stKey.dptr = (CHAR *)pstDbKey + pstMem->uiOffset;
+    if(ISNS_MEM_STR == pstMem->enType)
+    {
+        stKey.dsize = strlen(stKey.dptr);
+    }
+    else
+    {
+        stKey.dsize = pstMem->uiSize;
     }
 
     *pstOutKey = stKey;
-
-    return ulRet;
+    return ERROR_SUCCESS;
 
 }
 
@@ -124,7 +129,7 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
      Func Name : _isns_FormatByKeyValue
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 保存数据到内存，如果已存在则覆盖
+   Description : DB KEY 转 KEY, ENTRY 转 VALUE
          Input : 无
         Output : 无
         Return : 成功/失败
@@ -138,95 +143,21 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
 STATIC ULONG _isns_FormatByKeyValue(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry,
                                     OUT datum *pstOutKey,  OUT datum *pstOutValue)
 {
+    const ISNS_MEM_STRUCT_S *pstMem;
     ULONG ulRet = ERROR_SUCCESS;
-    datum stKey = { 0 }, stValue = { 0 };
+    datum stValue = { 0 };
 
-    switch (pstDbKey->tag)
+    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, pstOutKey))
     {
-        case DDS_ID_KEY:     /*  SOIP_Dds  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.dds_key.id;
-            stKey.dsize = DDS_KEY_SIZE;
-            stValue.dptr = (char *)&pstEntry->data.dds;
-            stValue.dsize = sizeof(SOIP_Dds);
-            break;
-        }
-        case DD_ID_KEY:      /*  SOIP_Dd  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.dd_key.id;
-            stKey.dsize = DD_KEY_SIZE;
-            stValue.dptr = (char *)&pstEntry->data.dd;
-            stValue.dsize = sizeof(SOIP_Dd);
-            break;
-        }
-        case ISCSI_ID_KEY:   /*  SOIP_Iscsi  */
-        {
-            stKey.dptr = (char *)pstDbKey->val.node_key.v;
-            stKey.dsize = strlen(pstDbKey->val.node_key.v);
-            stValue.dptr = (char *)&pstEntry->data.scsi_node;
-            stValue.dsize = sizeof(SOIP_Iscsi);
-            break;
-        }
-        case ENTITY_ID_KEY:  /*  SOIP_Entity  */
-        {
-            stKey.dptr = (char *)pstDbKey->val.entity_key.id;
-            stKey.dsize = strlen(pstDbKey->val.entity_key.id);
-            stValue.dptr = (char *)&pstEntry->data.entity;
-            stValue.dsize = sizeof(SOIP_Entity);
-            break;
-        }
-        case PORTAL_ID_KEY:  /*  SOIP_Portal  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.portal_key;
-            stKey.dsize = sizeof(SOIP_Portal_Key);
-            stValue.dptr = (char *)&pstEntry->data.portal;
-            stValue.dsize = sizeof(SOIP_Portal);
-            break;
-        }
-        case PORTAL_GROUP_ID_KEY:  /*  SOIP_Portal_Group  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.portal_group_key;
-            stKey.dsize = sizeof(SOIP_Portal_Group_Key);
-            stValue.dptr = (char *)&pstEntry->data.portal_group;
-            stValue.dsize = sizeof(SOIP_Portal_Group);
-            break;
-        }
-        /*  ###################  Index相关数据   ##################   */
-        case ENTITY_IDX_KEY:      /*  SOIP_Entity_Id  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.idx;
-            stKey.dsize = sizeof(SOIP_IDX_Key);
-            stValue.dptr = (char *)&pstEntry->data.entity_idx;
-            stValue.dsize = sizeof(SOIP_Entity_Id);
-            break;
-        }
-        case ISCSI_IDX_KEY:       /*  SOIP_ISCSI_Node_Id  */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.idx;
-            stKey.dsize = sizeof(SOIP_IDX_Key);
-            stValue.dptr = (char *)&pstEntry->data.iscsi_idx;
-            stValue.dsize = sizeof(SOIP_ISCSI_Node_Id);
-            break;
-        }
-        case PORTAL_IDX_KEY:     /*   SOIP_DB_Portal   */
-        {
-            stKey.dptr = (char *)&pstDbKey->val.idx;
-            stKey.dsize = sizeof(SOIP_IDX_Key);
-            stValue.dptr = (char *)&pstEntry->data.portal_idx;
-            stValue.dsize = sizeof(SOIP_DB_Portal);
-            break;
-        }
-
-        default:
-        {
-            ulRet = ERROR_FAILED;
-            break;
-        }
+        *pstOutValue = stValue;
+        return ERROR_FAILED;
     }
 
-    *pstOutKey = stKey;
-    *pstOutValue = stValue;
+    pstMem = &g_astIsnsMemValue[pstDbKey->tag];
+    stValue.dptr = (CHAR *)pstEntry + pstMem->uiOffset;
+    stValue.dsize = pstMem->uiSize;
 
+    *pstOutValue = stValue;
     return ulRet;
 
 }
@@ -235,7 +166,7 @@ STATIC ULONG _isns_FormatByKeyValue(IN const ISNS_DBKey *pstDbKey, IN const SOIP
      Func Name : _isns_Key2DbKey
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 保存数据到内存，如果已存在则覆盖
+   Description : KEY 转 DB KEY
          Input : 无
         Output : 无
         Return : 成功/失败
@@ -248,76 +179,39 @@ STATIC ULONG _isns_FormatByKeyValue(IN const ISNS_DBKey *pstDbKey, IN const SOIP
 *********************************************************************/
 STATIC ULONG _isns_Key2DbKey(IN UINT uiType, IN datum stKey, OUT ISNS_DBKey *pstDbKey)
 {
-    ULONG ulRet = ERROR_SUCCESS;
+    const ISNS_MEM_STRUCT_S *pstMem;
+    CHAR *pcDst;
 
     memset(pstDbKey, 0, sizeof(ISNS_DBKey));
     pstDbKey->tag = uiType;
 
-    /* 如果是字符串则在末尾加\0 */
-    switch (uiType)
+    pstMem = &g_astIsnsMemKey[uiType];
+    if(pstMem->enType <= ISNS_MEM_INVALID || pstMem->enType >= ISNS_MEM_TYPE_MAX)
     {
-        case DDS_ID_KEY:
-        {
-            memcpy(&pstDbKey->val.dds_key.id, stKey.dptr, DDS_KEY_SIZE);
-            pstDbKey->len = DDS_KEY_SIZE;
-            break;
-        }
-        case DD_ID_KEY:
-        {
-            memcpy(&pstDbKey->val.dd_key.id, stKey.dptr, DD_KEY_SIZE);
-            pstDbKey->len = DD_KEY_SIZE;
-            break;
-        }
-        case ISCSI_ID_KEY:
-        {
-            __ISNS_COPY(pstDbKey->val.node_key.v, NODE_SYM_NAME_SIZE-1, stKey.dptr, stKey.dsize);
-            pstDbKey->len = PAD4(stKey.dsize);
-            break;
-        }
-        case ENTITY_ID_KEY:
-        {
-            __ISNS_COPY(pstDbKey->val.entity_key.id, ENTITY_ID_SIZE-1, stKey.dptr, stKey.dsize);
-            pstDbKey->len = PAD4(stKey.dsize);
-            break;
-        }
-        case PORTAL_ID_KEY:
-        {
-            memcpy(&pstDbKey->val.portal_key, stKey.dptr, sizeof(SOIP_Portal_Key));
-            pstDbKey->len = sizeof(SOIP_Portal_Key);
-            break;
-        }
-        case PORTAL_GROUP_ID_KEY:
-        {
-            memcpy(&pstDbKey->val.portal_group_key, stKey.dptr, sizeof(SOIP_Portal_Group_Key));
-            pstDbKey->len = sizeof(SOIP_Portal_Group_Key);
-            break;
-        }
-        /*  ###################  Index相关数据   ##################   */
-        case ENTITY_IDX_KEY:
-        case ISCSI_IDX_KEY:
-        case PORTAL_IDX_KEY:
-        {
-            memcpy(&pstDbKey->val.idx, stKey.dptr, sizeof(SOIP_IDX_Key));
-            pstDbKey->len = sizeof(SOIP_IDX_Key);
-            break;
-        }
-
-        default:
-        {
-            ulRet = ERROR_FAILED;
-            break;
-        }
+        return ERROR_FAILED;
     }
 
-    return ulRet;
+    pcDst = (CHAR *)pstDbKey + pstMem->uiOffset;
+    if(ISNS_MEM_STR == pstMem->enType)
+    {
+        /* 如果是字符串则在末尾加\0 */
+        __ISNS_COPY(pcDst, pstMem->uiSize-1, stKey.dptr, stKey.dsize);
+        pstDbKey->len = stKey.dsize;
+    }
+    else
+    {
+        memcpy(pcDst, stKey.dptr, pstMem->uiSize);
+        pstDbKey->len = pstMem->uiSize;
+    }
 
+    return ERROR_SUCCESS;
 }
 
 /*********************************************************************
      Func Name : _isns_Value2Entry
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 保存数据到内存，如果已存在则覆盖
+   Description : VALUE 转 ENTRY
          Input : 无
         Output : 无
         Return : 成功/失败
@@ -330,74 +224,24 @@ STATIC ULONG _isns_Key2DbKey(IN UINT uiType, IN datum stKey, OUT ISNS_DBKey *pst
 *********************************************************************/
 STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Entry *pstEntry)
 {
-    ULONG ulRet = ERROR_SUCCESS;
-    CHAR *pcData = stValue.dptr;
+    const ISNS_MEM_STRUCT_S *pstMem;
 
     memset(pstEntry, 0, sizeof(SOIP_DB_Entry));
     pstEntry->data_type = uiType;
-    if(NULL == pcData)
+    if(NULL == stValue.dptr)
     {
         return ERROR_FAILED;
     }
 
-    switch (uiType)
+    pstMem = &g_astIsnsMemValue[uiType];
+    if(pstMem->enType <= ISNS_MEM_INVALID || pstMem->enType >= ISNS_MEM_TYPE_MAX)
     {
-        case DDS_ID_KEY:     /*  SOIP_Dds  */
-        {
-            memcpy(&pstEntry->data.dds, pcData, sizeof(SOIP_Dds));
-            break;
-        }
-        case DD_ID_KEY:      /*  SOIP_Dd  */
-        {
-            memcpy(&pstEntry->data.dd, pcData, sizeof(SOIP_Dd));
-            break;
-        }
-        case ISCSI_ID_KEY:   /*  SOIP_Iscsi  */
-        {
-            memcpy(&pstEntry->data.scsi_node, pcData, sizeof(SOIP_Iscsi));
-            break;
-        }
-        case ENTITY_ID_KEY:  /*  SOIP_Entity  */
-        {
-            memcpy(&pstEntry->data.entity, pcData, sizeof(SOIP_Entity));
-            break;
-        }
-        case PORTAL_ID_KEY:  /*  SOIP_Portal  */
-        {
-            memcpy(&pstEntry->data.portal, pcData, sizeof(SOIP_Portal));
-            break;
-        }
-        case PORTAL_GROUP_ID_KEY:  /*  SOIP_Portal_Group  */
-        {
-            memcpy(&pstEntry->data.portal_group, pcData, sizeof(SOIP_Portal_Group));
-            break;
-        }
-        /*  ###################  Index相关数据   ##################   */
-        case ENTITY_IDX_KEY:      /*  SOIP_Entity_Id  */
-        {
-            memcpy(&pstEntry->data.entity_idx, pcData, sizeof(SOIP_Entity_Id));
-            break;
-        }
-        case ISCSI_IDX_KEY:       /*  SOIP_ISCSI_Node_Id  */
-        {
-            memcpy(&pstEntry->data.iscsi_idx, pcData, sizeof(SOIP_ISCSI_Node_Id));
-            break;
-        }
-        case PORTAL_IDX_KEY:     /*   SOIP_DB_Portal   */
-        {
-            memcpy(&pstEntry->data.portal_idx, pcData, sizeof(SOIP_DB_Portal));
-            break;
-        }
-
-        default:
-        {
-            ulRet = ERROR_FAILED;
-            break;
-        }
+        return ERROR_FAILED;
     }
 
-    return ulRet;
+    memcpy((CHAR *)pstEntry + pstMem->uiOffset, stValue.dptr, pstMem->uiSize);
 
+    return ERROR_SUCCESS;
 }
 
 /*********************************************************************
@@ -508,7 +352,7 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
      Func Name : ISNS_MEM_Read
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 删除内存中的数据
+   Description : 读取内存中的数据
          Input : 无
         Output : 无
         Return : 成功/失败

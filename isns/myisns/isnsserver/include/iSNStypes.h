@@ -269,7 +269,8 @@ typedef enum {
       ENTITY_IDX_KEY,
       ISCSI_IDX_KEY,
       PORTAL_IDX_KEY,
-      LIST_KEY
+      LIST_KEY,
+      ISNS_DATABASE_MAX,
 
 } ISNS_Database_Key;
 
@@ -631,18 +632,21 @@ typedef struct _soip_iscsi_key {
 /* ids for identifying which list */
 typedef enum {
   ISCSI_DD_LIST = 1,
-  FCP_DD_LIST,
-  FCP_PORTAL_LIST,
   ENTITY_PORTAL_LIST,
-  ENTITY_FCP_LIST,
   ENTITY_ISCSI_LIST,
   DD_MEMBER_LIST,
   DD_DDS_LIST,
   DDS_DD_LIST,
-  PORTAL_ENTITY_LIST,
+
   SCN_CALLBACK_LIST,
   SCN_LIST,
   DATA_LIST_MAX,
+
+  /* Ó¦ÉáÆúµÄ */
+  FCP_DD_LIST,
+  FCP_PORTAL_LIST,
+  ENTITY_FCP_LIST,
+  PORTAL_ENTITY_LIST,
 } DATA_LIST_ID;
 
 #define LIST_KEY_SIZE (8)

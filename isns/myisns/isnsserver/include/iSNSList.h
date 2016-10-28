@@ -50,7 +50,6 @@ typedef struct _list
 {
     DTQ_HEAD_S *pstHead;
     uint32_t list_id;
-    void *p_entry;
 } ISNS_LIST;
 
 ISNS_LIST_NODE *

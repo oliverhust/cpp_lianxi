@@ -40,14 +40,27 @@
 
 int isns_list_debug = 0;
 
+STATIC const UINT g_auiListOffset[DATA_LIST_MAX] =
+{
+    [ISCSI_DD_LIST] = offsetof(SOIP_Iscsi, dd_id_list),
+    [ENTITY_PORTAL_LIST] = offsetof(SOIP_Entity, iportal_list),
+    [ENTITY_ISCSI_LIST] = offsetof(SOIP_Entity, iscsi_node_list),
+    [DD_MEMBER_LIST] = offsetof(SOIP_Dd, member_list),
+    [DD_DDS_LIST] = offsetof(SOIP_Dd, dds_list),
+    [DDS_DD_LIST] = offsetof(SOIP_Dds, dd_list),
+
+    [SCN_CALLBACK_LIST] = 0,
+    [SCN_LIST] = 0,
+};
+
 
 /********************************************************************
 judge If the list is initialized
 ********************************************************************/
-STATIC BOOL_T _list_IsInit(IN const ISNS_LIST *pstList)
+STATIC INLINE BOOL_T _list_IsInit(IN const ISNS_LIST *pstList)
 {
     if(pstList->list_id <= 0 || pstList->list_id >= DATA_LIST_MAX ||
-       NULL == pstList->p_entry)
+       NULL == pstList->pstHead)
     {
         return BOOL_FALSE;
     }
@@ -61,106 +74,13 @@ dummy node at the head of the list.
 int
 InitList(int list_id, void * record)
 {
-   ISNS_LIST *pstList = NULL;
+    ISNS_LIST *pstList = NULL;
 
-   switch (list_id)
-   {
-      case ISCSI_DD_LIST:
-      {
-         SOIP_Iscsi *p_entry;
-         p_entry = record;
-         pstList = &p_entry->dd_id_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case DDS_DD_LIST:
-      {
-         SOIP_Dds *p_entry;
-         p_entry = record;
-         pstList = &p_entry->dd_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case DD_DDS_LIST:
-      {
-         SOIP_Dd *p_entry;
-         p_entry = record;
-         pstList = &p_entry->dds_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case DD_MEMBER_LIST:
-      {
-         SOIP_Dd *p_entry;
-         p_entry = record;
-         pstList = &p_entry->member_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case ENTITY_PORTAL_LIST:
-      {
-         SOIP_Entity *p_entry;
-         p_entry = record;
-         pstList = &p_entry->iportal_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case ENTITY_ISCSI_LIST:
-      {
-         SOIP_Entity *p_entry;
-         p_entry = record;
-         pstList = &p_entry->iscsi_node_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case ENTITY_FCP_LIST:
-      {
-         SOIP_Entity *p_entry;
-         p_entry = record;
-         pstList = &p_entry->ifcp_node_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case FCP_PORTAL_LIST:
-      {
-         SOIP_Fc_Node *p_entry;
-         p_entry = record;
-         pstList = &p_entry->port_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case FCP_DD_LIST:
-      {
-         SOIP_Ifcp *p_entry;
-         p_entry = record;
-         pstList = &p_entry->dd_id_list;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case SCN_CALLBACK_LIST:
-      {
-         ISNS_LIST *p_entry;
-         p_entry = record;
-         pstList = p_entry;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      case SCN_LIST:
-      {
-         ISNS_LIST *p_entry;
-         p_entry = record;
-         pstList = p_entry;
-         pstList->p_entry = p_entry;
-         break;
-      }
-      default:
-      {
-         break;
-      }
-
-   }
-
-    if(NULL == pstList)
+    if(0 < list_id && list_id < DATA_LIST_MAX)
+    {
+        pstList = (ISNS_LIST *)((UCHAR *)record + g_auiListOffset[list_id]);
+    }
+    else
     {
         __LOG_ERROR("Init List: Unknown list type %d", list_id);
         return ISNS_UNKNOWN_ERR;
@@ -182,7 +102,7 @@ InitList(int list_id, void * record)
 }
 
 /********************************************************************
-Deletes a list.
+Deletes/DeInit a list.
 ********************************************************************/
 int
 DeleteList(ISNS_LIST *pstList)
@@ -250,22 +170,27 @@ Finds an object in the list.
 ISNS_LIST_NODE *
 FindNode(ISNS_LIST *pstList, char *pdata, int data_size)
 {
-   ISNS_LIST_NODE *ptr;
+    ISNS_LIST_NODE *ptr;
 
-   __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
+    __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
 
-   ptr = NULL;
+    if(BOOL_FALSE == _list_IsInit(pstList))
+    {
+        __LOG_ERROR ("Find Node: Not init, listId=%d, dataSize=%d", pstList->list_id, data_size);
+        return NULL;
+    }
 
-   while ( (ptr=GetNextNode(pstList, ptr)) )
-   {
-      if (ptr->data_size == data_size &&
-          !memcmp(ptr->data, pdata, data_size))
-      {
-         return (ptr);
-      }
-   }
+    ptr = NULL;
 
-   return ( NULL );
+    while ( (ptr=GetNextNode(pstList, ptr)) )
+    {
+        if (ptr->data_size == data_size && !memcmp(ptr->data, pdata, data_size))
+        {
+            return (ptr);
+        }
+    }
+
+    return ( NULL );
 }
 
 /********************************************************************
@@ -280,18 +205,8 @@ AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
 
     if(BOOL_FALSE == _list_IsInit(pstList))
     {
-        __LOG_ERROR ("Add Node: List Head is not init, data size = %d", data_size);
+        __LOG_ERROR ("Add Node: Not init, listId=%d, dataSize=%d", pstList->list_id, data_size);
         return ISNS_UNKNOWN_ERR;
-    }
-
-    if(NULL == pstList->pstHead)
-    {
-        pstList->pstHead = (DTQ_HEAD_S *)malloc(sizeof(DTQ_HEAD_S));
-        if(NULL == pstList->pstHead)
-        {
-            return ISNS_UNKNOWN_ERR;
-        }
-        DTQ_Init(pstList->pstHead);
     }
 
     pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
@@ -340,8 +255,9 @@ GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
     __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
 
-    if(NULL == pstList->pstHead)
+    if(BOOL_FALSE == _list_IsInit(pstList))
     {
+        __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
         return NULL;
     }
 

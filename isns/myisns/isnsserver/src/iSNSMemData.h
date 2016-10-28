@@ -39,9 +39,9 @@
 /* Modeled after DTQ */
 
 ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount);
-datum ISNS_MEMDATA_Get(IN UINT uiType, IN datum stKey);
-ULONG ISNS_MEMDATA_Add(IN UINT uiType, IN datum stKey, IN datum stValue);
-ULONG ISNS_MEMDATA_Del(IN UINT uiType, IN datum stKey);
+datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey);
+ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue);
+ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey);
 datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextValue);
 ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
                         OUT datum *pstNextKey, OUT datum *pstNextValue);

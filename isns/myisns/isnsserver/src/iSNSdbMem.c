@@ -309,7 +309,7 @@ INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry)
         return ISNS_UNKNOWN_ERR;
     }
 
-    if(ERROR_SUCCESS != ISNS_MEMDATA_Add(pstDbKey->tag, stKey, stValue))
+    if(ERROR_SUCCESS != ISNS_MEMDATA_Write(pstDbKey->tag, stKey, stValue))
     {
         __LOG_ERROR ("When write -- Write Memory data failed, tag = %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
@@ -343,7 +343,7 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
         return ISNS_UNKNOWN_ERR;
     }
 
-    (VOID)ISNS_MEMDATA_Del(pstDbKey->tag, stKey);
+    (VOID)ISNS_MEMDATA_Delete(pstDbKey->tag, stKey);
 
     return ISNS_NO_ERR;
 }
@@ -373,7 +373,7 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
         return ISNS_UNKNOWN_ERR;
     }
 
-    stValue = ISNS_MEMDATA_Get(pstDbKey->tag, stKey);
+    stValue = ISNS_MEMDATA_Read(pstDbKey->tag, stKey);
     if(NULL == stValue.dptr)   /* 目前存的数据里没有是空VALUE的情况  */
     {
         return ISNS_NO_SUCH_ENTRY_ERR;

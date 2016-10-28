@@ -40,7 +40,7 @@
 
 int isns_list_debug = 0;
 
-STATIC const UINT g_auiListOffset[DATA_LIST_MAX] =
+STATIC const UINT g_auiIsnsListOffset[DATA_LIST_MAX] =
 {
     [ISCSI_DD_LIST] = offsetof(SOIP_Iscsi, dd_id_list),
     [ENTITY_PORTAL_LIST] = offsetof(SOIP_Entity, iportal_list),
@@ -78,7 +78,7 @@ InitList(int list_id, void * record)
 
     if(0 < list_id && list_id < DATA_LIST_MAX)
     {
-        pstList = (ISNS_LIST *)((UCHAR *)record + g_auiListOffset[list_id]);
+        pstList = (ISNS_LIST *)((UCHAR *)record + g_auiIsnsListOffset[list_id]);
     }
     else
     {
@@ -228,7 +228,7 @@ AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
     pstNode->data_size = data_size;
     DTQ_AddTail(pstList->pstHead, &pstNode->stNode);
 
-    /* LDAP_ListAdd(list_id, p_entry, pdata, data_size)
+    /* ISNS_LDAP_List_AddNode(list_id, p_entry, pdata, data_size)
        添加时先添加到内存，删除时最后才从内存删除 */
 
     return ( SUCCESS );

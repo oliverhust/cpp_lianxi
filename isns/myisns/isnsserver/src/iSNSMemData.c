@@ -228,7 +228,7 @@ STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEMDATA_Add
+     Func Name : ISNS_MEMDATA_Write
   Date Created : 2016/10/25
         Author : liangjinchao@dian
    Description : 某个链表上添加一个数据，如果存在则覆盖
@@ -242,7 +242,7 @@ STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEMDATA_Add(IN UINT uiType, IN datum stKey, IN datum stValue)
+ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue)
 {
     DTQ_HEAD_S *pstHead;
     ISNS_MEM_NODE_S *pstNode = NULL, *pstNewNode;
@@ -294,7 +294,7 @@ ULONG ISNS_MEMDATA_Add(IN UINT uiType, IN datum stKey, IN datum stValue)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEMDATA_Get
+     Func Name : ISNS_MEMDATA_Read
   Date Created : 2016/10/25
         Author : liangjinchao@dian
    Description : 获取链表中的某个数据
@@ -308,7 +308,7 @@ ULONG ISNS_MEMDATA_Add(IN UINT uiType, IN datum stKey, IN datum stValue)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-datum ISNS_MEMDATA_Get(IN UINT uiType, IN datum stKey)
+datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey)
 {
     DTQ_HEAD_S *pstHead;
     ISNS_MEM_NODE_S *pstNode = NULL;
@@ -337,7 +337,7 @@ datum ISNS_MEMDATA_Get(IN UINT uiType, IN datum stKey)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEMDATA_Del
+     Func Name : ISNS_MEMDATA_Delete
   Date Created : 2016/10/25
         Author : liangjinchao@dian
    Description : 某个链表上删除一个数据
@@ -351,7 +351,7 @@ datum ISNS_MEMDATA_Get(IN UINT uiType, IN datum stKey)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEMDATA_Del(IN UINT uiType, IN datum stKey)
+ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey)
 {
     DTQ_HEAD_S *pstHead;
     ISNS_MEM_NODE_S *pstNode = NULL;

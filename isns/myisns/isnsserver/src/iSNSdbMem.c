@@ -512,7 +512,7 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
 }
 
 /*********************************************************************
-     Func Name : _isns_list_IsInit
+     Func Name : ISNS_MEM_List_IsInit
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 判断列表是否初始化
@@ -526,7 +526,7 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
 ----------------------------------------------------------------------
 
 *********************************************************************/
-STATIC INLINE BOOL_T _isns_list_IsInit(IN const ISNS_LIST *pstList)
+BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstList)
 {
     if(pstList->list_id <= 0 || pstList->list_id >= DATA_LIST_MAX ||
        NULL == pstList->pstHead)
@@ -602,7 +602,7 @@ INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList)
 
     __DEBUG (isns_list_debug &1,DeleteList list_id:%i,pstList->list_id);
 
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         return ISNS_UNKNOWN_ERR;
     }
@@ -641,7 +641,7 @@ INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList)
 *********************************************************************/
 VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList)
 {
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         __LOG_ERROR ("List_GetParent: Not init, listId=%d", pstList->list_id);
         return NULL;
@@ -668,7 +668,7 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
 {
     __DEBUG (isns_list_debug &1,Remove Node);
 
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         return ISNS_UNKNOWN_ERR;
     }
@@ -727,7 +727,7 @@ ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList,
 
     __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
 
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         __LOG_ERROR ("Find Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
         return NULL;
@@ -767,7 +767,7 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSi
 
     __DEBUG (isns_list_debug &1, AddNode - list_id:%i,pstList->list_id);
 
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         __LOG_ERROR ("Add Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
         return ISNS_UNKNOWN_ERR;
@@ -838,7 +838,7 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *
 {
     __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
 
-    if(BOOL_FALSE == _isns_list_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
         return NULL;

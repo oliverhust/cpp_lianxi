@@ -31,82 +31,25 @@
 
 ***********************************************************************/
 
-/*
- * This file contains definitions related to iSNS database
- * management
- *
- */
 
-#ifndef _SNSdb_h_
-#define _SNSdb_h_
-
-#include <time.h>
-#include "iSNSmsg.h"
-
-#ifndef SNS_LINUX
-#define bcmp(a,b,c)     memcmp(a,b,c)
-#endif
-
-/*
- * Default initialization value for device attributes.
- * When a database table is created all attributes are
- * initialized to SNS_UNREGISTERED
- */
-#define SNS_UNREGISTERED     0xFF
+#ifndef _ISNSMEMDATA_H
+#define _ISNSMEMDATA_H
 
 
-/* 数据库中的LDAP */
-#define ISNS_LDAP_SERVER_URL            "ldap://127.0.0.1:38989"
-#define ISNS_LDAP_ADMIN_DN              "cn=root,dc=abc,dc=com"
-#define ISNS_LDAP_ADMIN_PASS            "123456"
-#define ISNS_LDAP_ISNS_BASE             "dc=abc,dc=com"
+/* Modeled after DTQ */
 
-/* 数据库中的LDAP 一级目录(ou)的最大数量 */
-#define ISNS_DB_MAX_TYPE_COUNT        16
+ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount);
+datum ISNS_MEMDATA_Get(IN UINT uiType, IN datum stKey);
+ULONG ISNS_MEMDATA_Add(IN UINT uiType, IN datum stKey, IN datum stValue);
+ULONG ISNS_MEMDATA_Del(IN UINT uiType, IN datum stKey);
+datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextValue);
+ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
+                        OUT datum *pstNextKey, OUT datum *pstNextValue);
 
 
-/*
- * Function prototypes
- */
-typedef struct _dbStats {
-   int num_dd;
-   int num_dds;
-   int num_entity;
-   int num_iscsi;
-   int num_ifcp;
-   int num_portals;
-   int num_portal_groups;
-} dbStats;
 
-extern int
-ISNSdbOpen (void);
 
-extern void
-ISNSdbClose (void);
-
-int
-SNSdbGetNextOfKey (ISNS_DBKey * key);
-
-int SNSdbGetNextOfData(ISNS_DBKey *pstDbKey, VOID **ppIter, SOIP_DB_Entry *pstEntry);
-
-int
-ISNSdbRead (ISNS_DBKey *key, SOIP_DB_Entry *entry);
-
-int
-ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry);
-
-int
-ISNSdbDelete (ISNS_DBKey *key);
-
-uint32_t ISNSGetNewPortalIdx(void);
-
-int ISNS_GetNewDDS_ID (void);
-int ISNS_GetNewDD_ID (void);
-
-uint32_t ISNSGetNewEntityIdx(void);
-uint32_t ISNSGetNewISCSIIdx(void);
-uint32_t ISNSGetNewPortalIdx(void);
-
-void ISNSInitDBTables (void);
 
 #endif
+
+

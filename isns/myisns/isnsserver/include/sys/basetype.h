@@ -247,12 +247,15 @@ typedef long long __attribute__((aligned(8)))           INT64;
 #include <byteswap.h>                  /* LIBC Ã·π© */
 #endif
 #if (__BYTE_ORDER == __LITTLE_ENDIAN)
+#include <arpa/inet.h>
+/*
 #define ntohs(x)  __bswap_16 (x)
 #define htons(x)  __bswap_16 (x)
 #define ntohl(x)  __bswap_32 (x)
 #define htonl(x)  __bswap_32 (x)
 #define ntoh64(x) __bswap_64 (x)
 #define hton64(x) __bswap_64 (x)
+*/
 #else
 #define ntohs(x)   (x)
 #define htons(x)   (x)

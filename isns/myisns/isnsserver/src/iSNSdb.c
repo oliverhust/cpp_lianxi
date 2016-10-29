@@ -309,7 +309,7 @@ ppIter为一个VOID *型指针(其值初始化为0)地址
                  如果遍历次数为0则pIter还是NULL
                  如果只想遍历KEY不取数据则第三个参数为NULL
 *********************************************************************/
-int SNSdbGetNextOfData(ISNS_DBKey *pstDbKey, VOID **ppIter, SOIP_DB_Entry *pstEntry)
+int SNSdbGetNextOfData(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_Entry *pstEntry)
 {
     if(NULL == pstDbKey || NULL == ppIter)
     {

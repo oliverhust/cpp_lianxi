@@ -811,13 +811,13 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSi
 ----------------------------------------------------------------------
 
 *********************************************************************/
-INT ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
+BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
 {
     if(NULL == pstList->pstHead || DTQ_IsEmpty(pstList->pstHead))
     {
-        return TRUE;
+        return BOOL_TRUE;
     }
-    return FALSE;
+    return BOOL_FALSE;
 }
 
 /*********************************************************************
@@ -853,7 +853,10 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *
     {
         pstRet = DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
     }
-    pstRet = DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+    else
+    {
+        pstRet = DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+    }
 
     if(NULL != pstRet)
     {

@@ -53,7 +53,9 @@ VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize);
 ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList, IN CHAR *pdata, IN INT iDataSize);
 INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize);
 INT ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList);
-ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode);
+ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode,
+                                      OUT const CHAR **ppcData, OUT INT *piSize);
+
 
 
 #endif

@@ -58,6 +58,11 @@ DeleteList(ISNS_LIST *pstList)
 {
     INT iRet = SUCCESS;
 
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
     /* 所有删除操作先从LDAP/DBM开始 */
     //iRet |= ISNS_LDAP_List_Free(pstList);
 
@@ -74,8 +79,13 @@ RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
     INT iRet = SUCCESS;
 
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
     /* 删除操作先从LDAP/DBM开始 */
-    //iRet |= ISNS_LDAP_List_RemoveNode(pstList);
+    //iRet |= ISNS_LDAP_List_RemoveNode(pstList, pstNode);
 
     iRet |= ISNS_MEM_List_RemoveNode(pstList, pstNode);
 
@@ -135,7 +145,7 @@ Returns the next node in a list.
 ISNS_LIST_NODE *
 GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
-    return ISNS_MEM_List_GetNext(pstList, pstNode);
+    return ISNS_MEM_List_GetNext(pstList, pstNode, NULL, NULL);
 }
 
 

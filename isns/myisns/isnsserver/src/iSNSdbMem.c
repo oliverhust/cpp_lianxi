@@ -721,9 +721,11 @@ VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize)
 
 *********************************************************************/
 ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList,
-                                       IN CHAR *pdata, IN INT iDataSize)
+                                       IN CHAR *pcData, IN INT iDataSize)
 {
     ISNS_LIST_NODE *pstNode;
+    const CHAR *pcTmpData;
+    INT iTmpSize;
 
     __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
 
@@ -734,16 +736,15 @@ ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList,
     }
 
     pstNode = NULL;
-
-    while ( (pstNode=GetNextNode(pstList, pstNode)) )
+    while (NULL != (pstNode=ISNS_MEM_List_GetNext(pstList, pstNode, &pcTmpData, &iTmpSize)) )
     {
-        if (pstNode->data_size == iDataSize && !memcmp(pstNode->data, pdata, iDataSize))
+        if (iTmpSize == iDataSize && 0 == memcmp(pcTmpData, pcData, iDataSize))
         {
-            return (pstNode);
+            break;
         }
     }
 
-    return ( NULL );
+    return pstNode;
 }
 
 /*********************************************************************
@@ -823,19 +824,23 @@ INT ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
      Func Name : ISNS_MEM_List_GetNext
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 获取下一个节点
+   Description : 获取下一个节点及数据，不存在返回NULL
+                 OUT CHAR *ppcData, OUT INT *piSize可以为NULL
          Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
-        Output : 无
+        Output : OUT CHAR *ppcData, OUT INT *piSize
         Return : 下一个节点
-       Caution : 无
+       Caution : *ppcData为const char *类型，外部不应修改
 ----------------------------------------------------------------------
  Modification History
     DATE        NAME             DESCRIPTION
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
+ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode,
+                                      OUT const CHAR **ppcData, OUT INT *piSize)
 {
+    ISNS_LIST_NODE *pstRet;
+
     __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
 
     if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
@@ -846,9 +851,23 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *
 
     if(NULL == pstNode)
     {
-        return DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
+        pstRet = DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
     }
-    return DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+    pstRet = DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+
+    if(NULL != pstRet)
+    {
+        if(NULL != ppcData)
+        {
+            *ppcData = pstRet->data;
+        }
+        if(NULL != ppcData)
+        {
+            *piSize = pstRet->data_size;
+        }
+    }
+
+    return pstRet;
 }
 
 

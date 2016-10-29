@@ -116,21 +116,21 @@ ISNSdbWrite (ISNS_DBKey *key, SOIP_DB_Entry entry)
 {
     int iRet;
 
+    /* 先存入内存 */
     iRet = ISNS_MEM_Write(key, &entry);
-    if(ISNS_NO_ERR != iRet)
+    if(SUCCESS != iRet)
     {
         return iRet;
     }
 
-    /* 之后在添加存入LDAP/DBM, eg:
+    /* 再存入LDAP/DBM */
     iRet = ISNS_LDAP_Write(key, &entry);
-    if(ISNS_NO_ERR != iRet)
+    if(SUCCESS != iRet)
     {
         return iRet;
     }
-    */
 
-    return ISNS_NO_ERR;
+    return SUCCESS;
 }
 
 /*********************************************************************
@@ -139,11 +139,13 @@ Delete Entry in Database referenced by key
 int
 ISNSdbDelete (ISNS_DBKey *key)
 {
-    int iRet = ISNS_NO_ERR;
+    int iRet = SUCCESS;
 
+    /* 先从LDAP删除 */
+    iRet |= ISNS_LDAP_Delete(key);
+
+    /* 再从内存删除 */
     iRet |= ISNS_MEM_Delete(key);
-
-    /* 之后在添加删除LDAP/DBM */
 
     return iRet;
 }

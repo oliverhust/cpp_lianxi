@@ -31,30 +31,18 @@
 
 ***********************************************************************/
 
-#ifndef _ISNSDBMEM_H
-#define _ISNSDBMEM_H
+#ifndef _ISNSDBLDAP_H
+#define _ISNSDBLDAP_H
 
 
-ULONG ISNS_MEM_Init(UINT uiMaxTypeCount);
-VOID ISNS_MEM_Fini(VOID);
+INT ISNS_LDAP_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry);
+INT ISNS_LDAP_Delete(IN const ISNS_DBKey *pstDbKey);
 
-INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry);
-INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey);
-INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry);
-INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey);
-INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_Entry *pstEntry);
-
-INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord);
-BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstList);
-INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList);
-VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList);
-INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode);
-VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize);
-ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList, IN CHAR *pdata, IN INT iDataSize);
-INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize);
-BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList);
-ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode,
-                                      OUT const CHAR **ppcData, OUT INT *piSize);
+INT ISNS_LDAP_List_AddNode(IN UINT uiListType, IN const VOID *pParent,
+                           IN const CHAR *pcData, IN INT iSize);
+INT ISNS_LDAP_List_RemoveNode(IN UINT uiListType, IN const VOID *pParent,
+                              IN const CHAR *pcData, IN INT iSize);
+INT ISNS_LDAP_List_Free(IN UINT uiListType, IN const VOID *pParent);
 
 
 

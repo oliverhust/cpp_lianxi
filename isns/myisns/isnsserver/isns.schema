@@ -14,3 +14,290 @@ objectclass ( 12.3.6.1.4.1.7166.2.2.4 NAME 'isnsData' SUP top STRUCTURAL
         DESC 'Describe a student'
         MUST ( isnsKey $ isnsValue ))
 
+
+####################################################################################
+
+#This field consists of DiscoveryDomainSet objectclass and its attributes.
+attributetype ( 1.1.2 NAME 'DDSID'
+        DESC 'The DDS ID is an  identifier as a key to indicate a Discovery Domain Set uniquely.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.1.3 NAME 'DDSSymbolicName'
+        DESC 'A user-readable field used to assist a network administrator in tracking the DDS function.'
+        SUP name
+        EQUALITY caseExactMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+
+attributetype ( 1.1.4 NAME 'DDSStatus'
+        DESC 'A 32-bit bitmap indicating the status of the DDS.'
+        EQUALITY bitStringMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 SINGLE-VALUE )
+
+attributetype ( 1.1.5 NAME 'DDSMember'
+        DESC 'The DDs in DDS.'
+        EQUALITY caseExactMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+
+objectclass ( 1.1.1 NAME 'DiscoveryDomainSet'
+        DESC 'The set of discovery domain.'
+        SUP top STRUCTURAL
+        MUST ( DDSID $ DDSSymbolicName $ DDSStatus )
+		MAY ( DDSMember ))
+
+
+#This field consists of DiscoveryDomain objectclass and its attributes.
+attributetype ( 1.2.2 NAME 'DDID'
+	DESC 'An unsigned non-zero integer identifier as a key to identify a Discovery Domain uniquely.'
+	EQUALITY integerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.2.3 NAME 'DDSymbolicname'
+	DESC 'A user-readable field used to assist a network administrator in tracking the DD function.'
+	SUP name
+	EQUALITY caseExactMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256} )
+
+attributetype ( 1.2.4 NAME 'Feature'
+	DESC 'A bitmap indicating the features of this DD.'
+	EQUALITY bitStringMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 )
+
+attributetype ( 1.2.5 NAME 'DDMember'
+	DESC 'It indicates membership for index and symname of the specified iSCSI Storage Node in the Discovery Domain.'
+	EQUALITY caseExactMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{224} )
+
+attributetype ( 1.2.6 NAME 'PortalIndex'
+	DESC 'One alternative representation of membership in a Discovery Domain.'
+	EQUALITY integerMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.2.7 NAME 'PortalIPAddr'
+	DESC 'This attribute indicate membership in the Discovery Domain for the specified Portal.'
+	EQUALITY caseExactIA5Match
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+
+attributetype ( 1.2.8 NAME 'PortalPort'
+	DESC 'This attribute indicate membership in the Discovery Domain for the specified Portal.'
+	EQUALITY integerMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+	
+attributetype ( 1.2.9 NAME 'DDSMap'
+	DESC 'A set of string representing the DDSs’ID and SymName.'
+	EQUALITY caseExactMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+
+objectclass ( 1.2.1
+	NAME 'DiscoveryDomain'
+	DESC 'The domain in and only in which nodes can discovery each other.'
+	STRUCTURAL
+	MUST ( DDID $ DDSymbolicname $ Feature )
+	MAY ( DDMember $ PortalIndex $ PortalIPAddr $ PortalPort $ DDSMap ))
+
+
+#This field consists of NetworkEntity objectclass and its attributes.
+attributetype ( 1.3.2 NAME 'EID'
+        DESC 'This key attribute uniquely identifies each Network Entity.'
+        EQUALITY caseExactMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256} SINGLE-VALUE )
+
+attributetype ( 1.3.3 NAME 'EntityProtocol'
+        DESC 'A 4-byte integer that indicates the protocol used by the registered entity' 
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.3.4 NAME 'MgtIPAddr'
+		DESC 'The IP Address may be used to manage the Entity and all Storage Nodes.'
+        EQUALITY caseExactIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{16} SINGLE-VALUE )
+
+attributetype ( 1.3.5 NAME 'Timestamp'
+		DESC 'Indicates the most recent time.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.3.6 NAME 'ProtocolVerRange'
+		DESC 'This field contains the minimum and maximum version of the protocol supported by the Entity.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.3.7 NAME 'RegPeriod'
+		DESC 'indicates the maximum period, in seconds, that the registration SHALL be maintained by the server without receipt of an iSNS message from the iSNS client that registered the Network Entity.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.3.8 NAME 'EntityIndex'
+		DESC 'An unsigned non-zero integer value that uniquely identifies each Network Entity registered in the iSNS server'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+		
+attributetype ( 1.3.9 NAME 'PortalMember'
+		DESC 'The integers that indicate the index of portals in the entity.'
+		EQUALITY IntegerMatch
+		SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+		
+attributetype ( 1.3.10 NAME 'NodeMember'
+		DESC 'The strings that indicate the ID of nodes in the entity.'
+		EQUALITY caseExactMatch
+		SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+
+objectclass ( 1.3.1 NAME 'NetworkEntity'
+        DESC 'A container of storage nodes and portals.'
+        SUP top STRUCTURAL
+        MUST ( EID $ EntityProtocol $ MgtIPAddr $ Timestamp $ ProtocolVerRange $ RegPeriod $ EntityIndex)
+		MAY ( PortalMember $ NodeMember ))
+		
+
+#This field consists of StorageNode objectclass and its attributes.
+
+
+attributetype ( 1.4.2 NAME 'NodeName'
+	DESC 'key attribute,which is a variable-length UTF-8 encoded NULL-terminated text-based description of up to 224 bytes.'
+	EQUALITY caseExactMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256} )
+
+attributetype ( 1.4.3 NAME 'NodeType'
+	DESC 'A bitmap indicating the type of iSCSI Storage Node. requiring 32-bit field.'
+	EQUALITY bitStringMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 )
+
+attributetype ( 1.4.4 NAME 'NodeAlias'
+	DESC 'A user-readable description of the Node entry.'
+	EQUALITY caseExactMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256} )
+
+attributetype ( 1.4.5 NAME 'SCNBitmap'
+	DESC 'It indicates events for which the registeringiSNS client wishes to receive a notification message.'
+	EQUALITY bitStringMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 )
+
+attributetype ( 1.4.6 NAME 'NodeIndex'
+	DESC 'A 4-byte non-zero integer value used as a key that uniquely identifies each iSCSI Storage Node registered in theiSNS database.'
+	EQUALITY integerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.4.7 NAME 'DDMap'
+	DESC 'The integers that indicate the DDs to which the node belongs to.'
+	EQUALITY integerMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+	
+attributetype ( 1.4.8 NAME 'EntityID'
+	DESC 'The string indicates the entity the node belongs to.'
+	EQUALITY caseExactMatch
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+
+objectclass ( 1.4.1
+	NAME 'StorageNode'
+	DESC 'The logical endpoint of iSCSI session.'
+	STRUCTURAL
+	MUST ( NodeName $ NodeType $ NodeAlias $ SCNBitmap $ NodeIndex ) 
+	MAY ( DDMap $ EntityID ))
+
+#This field consists of Portal objectclass and its attributes.
+attributetype ( 1.5.2 NAME 'IPAddress'
+	DESC 'This attribute is the IP address of the Portal through which a Storage Node can transmit and receive storage data.'
+	EQUALITY caseExactIA5Match
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+
+attributetype ( 1.5.3 NAME 'Port'
+	DESC 'Storage Node can transmit and receive storage data through it. Bits 16 to 31 represents the port number.'
+	EQUALITY IntegerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.5.4 NAME 'PortalSymbolicName'
+	DESC 'The Portal Symbolic Name is a user-readable description of the Portal entry in the iSNS server.'
+	EQUALITY caseExactMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+
+attributetype ( 1.5.5 NAME 'ESIInterval'
+	DESC 'This field indicates the requested time, in seconds, between ESI messages sent from the iSNS server to this Network Entity.'
+	EQUALITY integerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.5.6 NAME 'ESIPort'
+	DESC 'This field contains the TCP or UDP port used for ESI monitoring by the iSNS server at the Portal IP Address.'
+	EQUALITY integerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+#Defined in DD
+#attributetype ( 1.5.7 NAME 'PortalIndex'
+#	DESC 'The Portal Index is a 4-byte non-zero integer value that uniquely identifies each Portal registered in the iSNS database.'
+#	EQUALITY integerMatch
+#	SINGLE-VALUE
+#	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.5.8 NAME 'SCNPort'
+	DESC 'This field contains the TCP or UDP port used by the iSNS client to receive SCN messages from the iSNS server.'
+	EQUALITY integerMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+
+attributetype ( 1.5.9 NAME 'PortalSecurityBitmap'
+	DESC 'This 4-byte field contains flags that indicate security attribute settings for the Portal.'
+	EQUALITY bitStringMatch
+	SINGLE-VALUE
+	SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 )
+
+objectclass ( 1.5.1
+	NAME 'Portal'
+	DESC 'An interface through which access to Storage Nodes within the Network Entity can be obtained.'
+	STRUCTURAL
+	MUST ( IPAddress $ Port $ PortalSymbolicName $ ESIInterval $ ESIPort $ PortalIndex $ SCNPort $ PortalSecurityBitmap ) 
+	MAY ( EntityID ))
+	
+#This field consists of PortalGroup objectclass and its attributes.
+attributetype ( 1.6.2 NAME 'PGNodeName'
+        DESC 'The iSCSI Name for the iSCSI Storage Node that is associated with the PG object.'
+        EQUALITY caseExactMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 SINGLE-VALUE )
+
+attributetype ( 1.6.3 NAME 'PGIPAddr'
+	DESC 'The Portal IP Address attribute for the Portal that is associated with the PG object.'
+        EQUALITY caseExactIA5Match
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+attributetype ( 1.6.4 NAME 'PGPort'
+        DESC 'The Portal TCP/UDP Port attribute for the Portal that is associated with the PG object.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.6.5 NAME 'PGT'
+        DESC 'Used to group Portals in order to coordinate connections in a session across Portals to a specified iSCSI Node.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+attributetype ( 1.6.6 NAME 'PGIndex'
+        DESC 'A key that uniquely identifies each PG object registered.'
+        EQUALITY IntegerMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )
+
+objectclass ( 1.6.1 NAME 'PortalGroup'
+        DESC 'An object representing an association between a Portal and an iSCSI Node.'
+        SUP top STRUCTURAL
+        MUST (  PGNodeName $ PGIPAddr $ PGPort $ PGT $ PGIndex ))
+
+
+
+
+
+
+
+
+
+
+
+

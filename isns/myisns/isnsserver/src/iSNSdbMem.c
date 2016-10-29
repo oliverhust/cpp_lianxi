@@ -315,7 +315,7 @@ VOID ISNS_MEM_Fini()
 ----------------------------------------------------------------------
 
 *********************************************************************/
-INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry)
+INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry)
 {
     datum stKey, stValue;
 
@@ -331,7 +331,7 @@ INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry)
         return ISNS_UNKNOWN_ERR;
     }
 
-    return ISNS_NO_ERR;
+    return SUCCESS;
 }
 
 /*********************************************************************
@@ -361,7 +361,7 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
 
     (VOID)ISNS_MEMDATA_Delete(pstDbKey->tag, stKey);
 
-    return ISNS_NO_ERR;
+    return SUCCESS;
 }
 
 /*********************************************************************
@@ -401,7 +401,7 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
         return ISNS_UNKNOWN_ERR;
     }
 
-    return ISNS_NO_ERR;
+    return SUCCESS;
 }
 
 /*********************************************************************

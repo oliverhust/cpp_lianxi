@@ -38,6 +38,7 @@
 #include "iSNSbuffer.h"
 #include "iSNSdebug.h"
 #include "iSNSdbMem.h"
+#include "iSNSdbLdap.h"
 
 
 /********************************************************************
@@ -57,14 +58,17 @@ int
 DeleteList(ISNS_LIST *pstList)
 {
     INT iRet = SUCCESS;
+    VOID *pParent;
 
     if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         return ISNS_UNKNOWN_ERR;
     }
 
+    pParent = ISNS_MEM_List_GetParent(pstList);
+
     /* 所有删除操作先从LDAP/DBM开始 */
-    //iRet |= ISNS_LDAP_List_Free(pstList);
+    iRet |= ISNS_LDAP_List_Free(pstList->list_id, pParent);
 
     iRet |= ISNS_MEM_List_Free(pstList);
 
@@ -78,14 +82,17 @@ int
 RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 {
     INT iRet = SUCCESS;
+    VOID *pParent;
 
     if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         return ISNS_UNKNOWN_ERR;
     }
 
+    pParent = ISNS_MEM_List_GetParent(pstList);
+
     /* 删除操作先从LDAP/DBM开始 */
-    //iRet |= ISNS_LDAP_List_RemoveNode(pstList, pstNode);
+    iRet |= ISNS_LDAP_List_RemoveNode(pstList->list_id, pParent, pstNode->data, pstNode->data_size);
 
     iRet |= ISNS_MEM_List_RemoveNode(pstList, pstNode);
 
@@ -117,6 +124,7 @@ int
 AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
 {
     INT iRet;
+    const VOID *pParent;
 
     iRet = ISNS_MEM_List_AddNode(pstList, pdata, data_size);
     if(SUCCESS != iRet)
@@ -124,8 +132,10 @@ AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
         return iRet;
     }
 
-    /* ISNS_LDAP_List_AddNode(list_id, p_entry, pdata, data_size)
-       添加时先添加到内存，删除时最后才从内存删除 */
+    pParent = ISNS_MEM_List_GetParent(pstList);
+
+    /* 添加时先添加到内存，删除时最后才从内存删除 */
+    iRet = ISNS_LDAP_List_AddNode(pstList->list_id, pParent, pdata, data_size);
 
     return iRet;
 }

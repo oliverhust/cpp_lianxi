@@ -69,6 +69,7 @@ OBJECTS += iSNSNdbLdap.o
 OBJECTS += iSNShash.o
 OBJECTS += iSNSdbMem.o
 OBJECTS += iSNSMemData.o
+OBJECTS += iSNSdbLdap.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -167,6 +168,9 @@ iSNSMemData.o : $(SRCDIR)iSNSMemData.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 iSNSdbMem.o : $(SRCDIR)iSNSdbMem.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+iSNSdbLdap.o : $(SRCDIR)iSNSdbLdap.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 ut : 

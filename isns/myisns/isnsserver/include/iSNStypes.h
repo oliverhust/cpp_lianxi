@@ -369,6 +369,7 @@ typedef struct soip_dd {
 
 typedef struct _soip_iscsi_node_name {
     char   v[MAX_ISCSI_NODE_ID_SIZE];
+    uint32_t uiCount;       /* 被多少个DD引用 */
 } SOIP_ISCSI_Node_Id;
 
 typedef struct _soip_time {

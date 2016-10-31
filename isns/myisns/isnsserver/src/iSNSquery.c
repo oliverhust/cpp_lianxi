@@ -1,39 +1,39 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 /*
  * This file contains source code for managing the
- * iSNS database. 
+ * iSNS database.
  *
  */
 #include "iSNS.h"
@@ -97,7 +97,7 @@ static int
 SNSdbGetAttrDDSEntry (int id, ISNS_Attr **attr_indx, ISNS_Msg * p_msg);
 
 static int
-SNSdbGetAttrDDS (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_attr, 
+SNSdbGetAttrDDS (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_attr,
                  ISNS_Msg_Descp * md, ISNS_Msg * p_rspmsg);
 
 static int
@@ -109,7 +109,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
                     ISNS_Msg_Descp * md, ISNS_Msg * p_rspmsg);
 
 /*********************************************************************
-_SNSdbGetAttr 
+_SNSdbGetAttr
 
 Calls the more specific get routines.
 *********************************************************************/
@@ -140,7 +140,7 @@ ISNSdbGetAttr ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       case ISNS_ENTITY_PERIOD:
       case ISNS_ENTITY_IDX:
          /* Search entity table */
-         status = SNSdbGetAttrEntity ( attr_indx, key_indx, 
+         status = SNSdbGetAttrEntity ( attr_indx, key_indx,
                                        (ISNS_Attr *)src_attr, NULL, p_rspmsg);
          break;
 
@@ -150,7 +150,7 @@ ISNSdbGetAttr ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       case ISNS_PORTAL_PORT:
       case ISNS_PORTAL_SYM_NAME:
       case ISNS_PORTAL_IDX:
-         status = SNSdbGetAttrPortal ( attr_indx, key_indx, 
+         status = SNSdbGetAttrPortal ( attr_indx, key_indx,
                                        (ISNS_Attr *)src_attr, NULL, p_rspmsg );
          break;
 
@@ -173,7 +173,7 @@ ISNSdbGetAttr ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       case ISNS_FC4_TYPE:
       case ISNS_FC4_DESC:
       case ISNS_FC4_FEATURE:
-         status = SNSdbGetAttrPort ( attr_indx, key_indx, 
+         status = SNSdbGetAttrPort ( attr_indx, key_indx,
                                      (ISNS_Attr *)src_attr, NULL, p_rspmsg );
          break;
       case ISNS_ISCSI_TYPE:
@@ -181,7 +181,7 @@ ISNSdbGetAttr ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       case ISNS_ISCSI_ALIAS:
       case ISNS_ISCSI_SCN_BITMAP:
       case ISNS_ISCSI_IDX:
-         status = ISNSdbGetAttrISCSI ( attr_indx, key_indx, 
+         status = ISNSdbGetAttrISCSI ( attr_indx, key_indx,
                                        (ISNS_Attr *)src_attr, NULL, p_rspmsg );
          break;
 
@@ -245,7 +245,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
    iSCSINodeKeyFlag = -1;
    iFCPNodeKeyFlag = -1;
    iSCSINodeIdxKeyFlag = -1;
-   
+
    __DEBUG (isns_query_debug &1,(GetAttrEntity));
 
    ISNSTouchEntity( src_attr );
@@ -304,7 +304,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          rval = Check_Permission (src_attr, ENTITY_ID_KEY, p_entity);
          if (rval == SUCCESS)
-         { 
+         {
            foundFlag = TRUE;
            ISNSdbProcessEntityOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_entity);
          }
@@ -335,7 +335,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          rval = Check_Permission (src_attr, ENTITY_ID_KEY, p_entity);
          if (rval == SUCCESS)
-         { 
+         {
            foundFlag = TRUE;
            ISNSdbProcessEntityOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_entity);
          }
@@ -369,7 +369,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
       rval = Check_Permission (src_attr, ENTITY_ID_KEY, p_entity);
       if (rval == SUCCESS)
-      { 
+      {
            foundFlag = TRUE;
            ISNSdbProcessEntityOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_entity);
       }
@@ -378,7 +378,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
    {
       /* Fetch iFCP Node */
       key = (ISNS_Key *) key_indx[iFCPNodeKeyFlag];
-      
+
       rval = read_FCPortObject((char *)&key->val, &p_port, &entry);
       if (rval != SUCCESS)
          return rval;
@@ -392,7 +392,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
       rval = Check_Permission (src_attr, ENTITY_ID_KEY, p_entity);
       if (rval == SUCCESS)
-      { 
+      {
          foundFlag = TRUE;
          ISNSdbProcessEntityOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_entity);
       }
@@ -402,7 +402,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
    {
       SOIP_ISCSI_Node_Id db_node_name;
       SOIP_Iscsi *p_node;
-      void *ptr;
+      SOIP_ISCSI_Node_Id *ptr;
 
       memset (&db_node_name, 0, sizeof (db_node_name));
       if (iSCSINodeIdxKeyFlag != -1)
@@ -412,7 +412,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
          if (rval != SUCCESS)
             return rval;
 
-         strncpy ((char *) db_node_name.v, (char *) ptr, sizeof(db_node_name.v));
+         strncpy ((char *) db_node_name.v, ptr->v, sizeof(db_node_name.v));
 
       }
       else
@@ -435,7 +435,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
       rval = Check_Permission (src_attr, ENTITY_ID_KEY, p_entity);
       if (rval == SUCCESS)
-      { 
+      {
         foundFlag = TRUE;
         ISNSdbProcessEntityOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_entity);
       }
@@ -470,7 +470,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 }
 
 /*********************************************************************
-_SNSdbGetAttrDDSEntry 
+_SNSdbGetAttrDDSEntry
 
 Retrieves the DDS entry from the database.
 *********************************************************************/
@@ -494,7 +494,7 @@ _SNSdbGetAttrDDS
 Determines what needs to be done to return the DDS attributes.
 *********************************************************************/
 static int
-SNSdbGetAttrDDS (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_attr, 
+SNSdbGetAttrDDS (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_attr,
                  ISNS_Msg_Descp * md, ISNS_Msg * p_rspmsg)
 {
    int ii;
@@ -608,7 +608,7 @@ SNSdbGetAttrDDS (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_at
 
 
 /*********************************************************************
-_SNSdbGetAttrDDEntry 
+_SNSdbGetAttrDDEntry
 
 Retrieves a DD entry from the database.
 *********************************************************************/
@@ -624,12 +624,12 @@ SNSdbGetAttrDDEntry (int id, ISNS_Attr **attr_indx, ISNS_Msg * p_msg)
 
    if (rval == SUCCESS)
       ISNSdbProcessDDOpAttr( p_msg, (ISNS_Attr **) attr_indx, p_dd );
-   
+
    return ( rval );
 }
 
 /*********************************************************************
-_SNSdbGetAttrDD 
+_SNSdbGetAttrDD
 
 Determines what to do to retrieve a DD's attributes
 *********************************************************************/
@@ -854,7 +854,7 @@ SNSdbGetAttrNode (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Msg_Descp * 
       /* Search the node table */
       ISNS_DBKey key = { 0 };
       key.tag = NODE_NAME_KEY;
-      
+
       while (SNSdbGetNextOfKey (&key) == SUCCESS)
       {
          memset (&db_node_name, 0, sizeof (db_node_name));
@@ -1062,7 +1062,7 @@ SNSdbGetAttrPortal (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
       rval = read_ISCSIObject(db_node_name.v, &p_node, &entry);
       if (rval != SUCCESS)
         return rval;
-  
+
       rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
       if (rval != SUCCESS)
       {
@@ -1421,7 +1421,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
          if (rval == SUCCESS)
-         { 
+         {
            __DEBUG (isns_query_debug &1,call ISNSdbProcessICSCIOpAttr);
            ISNSdbProcessISCSIOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_node);
            foundFlag = TRUE;
@@ -1437,7 +1437,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
       while (nodeIdxKeyIndex != -1)
       {
-         void *ptr;
+         SOIP_ISCSI_Node_Id *ptr;
          key = (ISNS_Key *)(key_indx[nodeIdxKeyIndex]);
          rval = read_ISCSIidxObject(key->val.index, &ptr, &entry3);
          if (rval != SUCCESS)
@@ -1445,7 +1445,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          /* Fetch the node */
          memset (&db_node_name, 0, sizeof (db_node_name));
-         strncpy ((char *) db_node_name.v, ptr, sizeof(db_node_name.v) );
+         strncpy ((char *) db_node_name.v, ptr->v, sizeof(db_node_name.v) );
 
          rval = read_ISCSIObject(db_node_name.v, &p_node, &entry);
          if (rval != SUCCESS)
@@ -1453,7 +1453,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
          if (rval == SUCCESS)
-         { 
+         {
             ISNSdbProcessISCSIOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_node);
             foundFlag = TRUE;
          }
@@ -1490,7 +1490,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
          rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
          if (rval == SUCCESS)
-         { 
+         {
            ISNSdbProcessISCSIOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_node);
            foundFlag = TRUE;
          }
@@ -1539,7 +1539,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
                rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
                if (rval == SUCCESS)
-               { 
+               {
                  ISNSdbProcessISCSIOpAttr (p_rspmsg, (ISNS_Attr **)attr_indx, p_node);
                  foundFlag = TRUE;
                }
@@ -1565,14 +1565,14 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
          {
             key = (ISNS_Key *)(key_indx[nodeTypeKeyIndex]);
             __DEBUG(isns_query_debug &1, key->val.node_type:%i p_node->type:%i,key->val.node_type,p_node->type);
-            
+
             if (!(*(uint32_t *) &key->val & p_node->type))
                continue;
          }
 
          rval = Check_Permission (src_attr, ISCSI_ID_KEY, p_node);
          if (rval == SUCCESS)
-         { 
+         {
             /* if the first found entry then add the key attr */
             if (!foundFlag)
             {
@@ -1587,7 +1587,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
          }
       }
    }
-   
+
    rc = ISNS_NO_ERR;
    if (!foundFlag)
       rc = ISNS_NO_SUCH_ENTRY_ERR;
@@ -1776,8 +1776,8 @@ ISNSGetNextAttr( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       }
       else if (iscsiIdxKeyIndex != -1)
       {
-         void *ptr;
-         
+         SOIP_ISCSI_Node_Id *ptr;
+
          key=(ISNS_Key *)(key_indx[iscsiIdxKeyIndex]);
 
          if (key->len && key->val.index)
@@ -1786,8 +1786,8 @@ ISNSGetNextAttr( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
             if (rval != SUCCESS)
              return rval;
 
-            qkey.len = strlen(ptr);
-            __ISNS_COPY (&qkey.val, sizeof (qkey.val), ptr, qkey.len);
+            qkey.len = strlen(ptr->v);
+            __ISNS_COPY (&qkey.val, sizeof (qkey.val), ptr->v, qkey.len);
          }
       }
 
@@ -1811,7 +1811,7 @@ ISNSGetNextAttr( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
          {
                continue;
          }
-         
+
          ISNSAppendKey (p_rspmsg, ISNS_ISCSI_NODE_ID,
                          PAD4 (strlen ((char *)&qkey.val)), (char *)&qkey.val, 0);
 
@@ -2055,7 +2055,7 @@ ISNSGetNextDDSMember ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
    if ( plnode )
    {
       /* Append Attribute */
-      ISNSAppendAttr(p_rspmsg, ISNS_DD_ID, ISNS_DD_ID_SIZE, 
+      ISNSAppendAttr(p_rspmsg, ISNS_DD_ID, ISNS_DD_ID_SIZE,
          NULL, *(uint32_t *)GetNodeData(plnode));
    }
 
@@ -2129,7 +2129,7 @@ ISNSGetNextEntityPortal( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
    {
       /* Append Attribute */
       p_portalListEntry = (PORTAL_LIST_ENTRY *)GetNodeData(plnode);
-      ISNSAppendAttr( p_rspmsg, ISNS_PORTAL_IDX, ISNS_PORTAL_IDX_SIZE, 
+      ISNSAppendAttr( p_rspmsg, ISNS_PORTAL_IDX, ISNS_PORTAL_IDX_SIZE,
                       NULL, p_portalListEntry->portal_idx );
    }
 
@@ -2205,7 +2205,7 @@ ISNSGetNextDDIscsiMember( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
    {
       /* Append Attribute */
       p_member = (SOIP_Dd_Member *)GetNodeData(plnode);
-      ISNSAppendAttr(p_rspmsg, ISNS_DD_ISCSI_MEMBER_IDX, ISNS_ISCSI_IDX_SIZE, 
+      ISNSAppendAttr(p_rspmsg, ISNS_DD_ISCSI_MEMBER_IDX, ISNS_ISCSI_IDX_SIZE,
          NULL, p_member->node_idx);
    }
 
@@ -2466,7 +2466,7 @@ ISNSdbProcessISCSIOpAttr (ISNS_Msg * p_msg, ISNS_Attr ** attr_indx,
 
       case ISNS_DD_ID:
          pnode = NULL;
-         while ( ( pnode = GetNextNode(&p_node->dd_id_list, pnode) ) ) 
+         while ( ( pnode = GetNextNode(&p_node->dd_id_list, pnode) ) )
          {
             ISNSAppendAttr ( p_msg, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL,
                              *(uint32_t *)GetNodeData( pnode ) );
@@ -2515,15 +2515,15 @@ ISNSdbProcessISCSIOpAttr (ISNS_Msg * p_msg, ISNS_Attr ** attr_indx,
          }
          break;
       case ISNS_ENTITY_IDX:
-         ISNSAppendAttr ( p_msg, ISNS_ENTITY_IDX, ISNS_ENTITY_IDX_SIZE, 
+         ISNSAppendAttr ( p_msg, ISNS_ENTITY_IDX, ISNS_ENTITY_IDX_SIZE,
                           NULL, p_entity->entity_index );
          break;
       case ISNS_ISCSI_IDX:
-         ISNSAppendAttr ( p_msg, ISNS_ISCSI_IDX, ISNS_ISCSI_IDX_SIZE, 
+         ISNSAppendAttr ( p_msg, ISNS_ISCSI_IDX, ISNS_ISCSI_IDX_SIZE,
                           NULL, p_node->iscsi_index );
          break;
       case ISNS_ISCSI_SCN_BITMAP:
-         ISNSAppendAttr ( p_msg, ISNS_ISCSI_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE, 
+         ISNSAppendAttr ( p_msg, ISNS_ISCSI_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE,
                           NULL, p_node->scn_bitmap);
          break;
       default:
@@ -2934,7 +2934,7 @@ ISNSdbProcessFCNodeOpAttr (ISNS_Msg * p_msg, ISNS_Attr ** attr_indx,
 
 /********************************************************************
 ********************************************************************/
-int 
+int
 IsDDSActive(int dds_id)
 {
    SOIP_Dds *p_dds;
@@ -3239,7 +3239,7 @@ Check_Permission (ISNS_Attr *src_attr, int rectype, void * ptr)
    /* check if control node */
    if ( 0 == strcmp (src_attr->val.node_name.v, isns_control_node) )
      return SUCCESS;
- 
+
    memset (dlist_src, 0, MAX_DD_PER_LIST*sizeof(uint32_t));
    rval = SNSGet_Active_DD_List_From_Src (src_attr, dlist_src, 0);
    if (rval !=SUCCESS)
@@ -3336,7 +3336,7 @@ Check_Permission (ISNS_Attr *src_attr, int rectype, void * ptr)
              }
           }
           break;
- 
+
       case DD_ID_KEY:
           {
             p_dd = ptr;

@@ -31,6 +31,12 @@
 #include "iSNSdebug.h"
 #include "iSNSNdb.h"
 
+#ifndef LDAP_DEPRECATED
+#define LDAP_DEPRECATED 1
+#endif
+//#include <openldap/ldap.h>
+#include <ldap.h>
+
 
 /*********************************************************************
      Func Name : ISNS_LDAP_Write

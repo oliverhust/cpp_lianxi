@@ -32,6 +32,7 @@
 ***********************************************************************/
 
 
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNScomm.h"
 #include "iSNSdb.h"

@@ -34,16 +34,77 @@
 #ifndef _ISNSLDAPLIB_H
 #define _ISNSLDAPLIB_H
 
-BOOL_T ISNS_LDAP_IsDnExist(LDAP *pstLd, const CHAR *pcDN);
-ULONG ISNS_LDAP_SetStringAttr(LDAPMod **ppstAttr,
-                                 const CHAR *pcAttrValue,
-                                 const CHAR *pcAttrName);
-ULONG ISNS_LDAP_AddStringAttr(LDAPMod **ppstAttr,
-                                 const CHAR *pcAttrValue,
-                                 const CHAR *pcAttrName);
-ULONG ISNS_LDAP_DelStringAttr(LDAPMod **ppstAttr,
-                                 const CHAR *pcAttrValue,
-                                 const CHAR *pcAttrName);
+
+/* 一次最多配置的属性个数+1 */
+#define ISNS_LDAP_ATTR_MAX_SIZE             16
+
+/* DN的最大长度+1 */
+#define ISNS_LDAP_DN_MAX_SIZE               1024
+
+/* 启动时尝试连接的次数与时间间隔 */
+#define ISNS_LDAP_INIT_TRY_MAX              64
+#define ISNS_LDAP_INIT_TRY_INTERVAL         2
+
+#define ISNS_LDAP_OBJCLASS                  "objectClass"
+#define ISNS_LDAP_OU_OBJCLASS               "organizationalUnit"
+#define ISNS_LDAP_OBJ_OU                    "ou"
+
+
+/* 对某个目录的遍历的回调函数, 返回非0值就终止遍历 */
+typedef ULONG (*ISNS_LDAP_SCAN_PF)(IN const CHAR *const *ppcNameList,
+                                   IN CHAR **const *pppcValuesList,
+                                   INOUT VOID *pSelfData);
+
+VOID ISNS_LDAP_Num2BitStr(IN UINT32 uiNum, OUT CHAR *pcOut);
+
+CHAR *ISNS_LDAP_EscapeRdn(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue);
+
+ULONG ISNS_LDAP_SetStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue, OUT LDAPMod **ppstAttr);
+
+ULONG ISNS_LDAP_AddStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue, OUT LDAPMod **ppstAttr);
+
+ULONG ISNS_LDAP_DelStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue, OUT LDAPMod **ppstAttr);
+
+LDAPMod **ISNS_LDAP_NewSingleAttrs(IN const CHAR *const *ppcNameList,
+                                   IN const CHAR *const *ppcValueList);
+
+ULONG ISNS_LDAP_MultValueAdd(IN const CHAR *pcDn, IN const CHAR *pcAttrName, IN const CHAR *pcValue);
+
+ULONG ISNS_LDAP_MultValueDel(IN const CHAR *pcDn, IN const CHAR *pcAttrName, IN const CHAR *pcValue);
+
+ULONG ISNS_LDAP_MultValueDelAll(IN const CHAR *pcDn, IN const CHAR *pcAttrName);
+
+LDAPMod **ISNS_LDAP_NewAttrs(VOID);
+
+VOID ISNS_LDAP_FreeAttrs(IN LDAPMod ***pppstAttrs);
+
+ULONG ISNS_LDAP_ServerInit(IN const ISNS_LDAP_INIT_S *pstInit,
+                           IN const CHAR *const *ppcPreDirs);
+
+VOID ISNS_LDAP_ServerFini(VOID);
+
+BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr);
+
+ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
+
+ULONG ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
+
+ULONG ISNS_LDAP_ReplaceEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
+
+ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn);
+
+ULONG ISNS_LDAP_SearchEntry(
+    IN const CHAR *pcBase,
+    IN INT iScope,
+    IN const CHAR *pcFilter,
+    IN CHAR **ppcAttrs,
+    IN INT iAttrsonly,
+    OUT LDAPMessage **ppstRes,
+    OUT LDAP **ppstLdap);
+
+ULONG ISNS_LDAP_ScanDir(IN const CHAR *pcDirDn, IN const CHAR *const *ppcNameList,
+                        IN ISNS_LDAP_SCAN_PF pfCallback, INOUT VOID *pSelfData);
+
 
 
 

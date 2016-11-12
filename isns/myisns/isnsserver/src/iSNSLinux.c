@@ -34,7 +34,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 #include "iSNSLinux.h"
 #include "iSNS.h"
 #include "iSNScomm.h"

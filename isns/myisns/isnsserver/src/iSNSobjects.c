@@ -1,34 +1,34 @@
 /***********************************************************************
   Copyright (c) 2007, Novell, Inc.
   All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
+  
+  Redistribution and use in source and binary forms, with or without 
+  modification, are permitted provided that the following conditions are 
   met:
-
-  - Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
-  - Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
-  - Neither the name of the Novell, Inc nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NOVELL, INC.
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+  
+  - Redistributions of source code must retain the above copyright notice, 
+    this list of conditions and the following disclaimer. 
+  
+  - Redistributions in binary form must reproduce the above copyright 
+    notice, this list of conditions and the following disclaimer in the 
+    documentation and/or other materials provided with the distribution. 
+  
+  - Neither the name of the Novell, Inc nor the names of its 
+    contributors may be used to endorse or promote products derived from 
+    this software without specific prior written permission. 
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NOVELL, INC. 
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+ 
 ***********************************************************************/
 
 /*
@@ -36,11 +36,17 @@
  * to the database
  *
  */
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSdb.h"
 #include "iSNSobjects.h"
-#include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNSdebug.h"
 
@@ -183,8 +189,8 @@ read_DDObject (int id, SOIP_Dd **p_dd, SOIP_DB_Entry *p_entry)
    ISNS_DBKey key;
    int rval;
 
-   if (id == 0)
-      return (ERROR);
+//   if (id == 0)
+//      return (ERROR);
 
    key.tag = DD_ID_KEY;
    key.val.dd_key.id = id;
@@ -241,7 +247,7 @@ read_ISCSIidxObject
 Reads a idx object from the database
 *********************************************************************/
 int
-read_ISCSIidxObject (int id, SOIP_ISCSI_Node_Id **p_idx, SOIP_DB_Entry *p_entry)
+read_ISCSIidxObject (int id, SOIP_ISCSI_Index **p_idx, SOIP_DB_Entry *p_entry)
 {
    ISNS_DBKey key;
    int rval;
@@ -254,7 +260,33 @@ read_ISCSIidxObject (int id, SOIP_ISCSI_Node_Id **p_idx, SOIP_DB_Entry *p_entry)
    key.val.idx.index_type = ISCSI_IDX_KEY;
 
    rval = ISNSdbRead(&key,p_entry);
-   *p_idx = (char *)&p_entry->data.iscsi_idx;
+   *p_idx = &p_entry->data.iscsi_idx;
+
+   return rval;
+}
+
+/*********************************************************************
+read_ISCSIidxObject
+Reads a idx object from the database
+*********************************************************************/
+int
+read_ISCSIidxObjectByName (IN const char *pcName, OUT SOIP_ISCSI_Index *pstOut)
+{
+   ISNS_DBKey key = { 0 };
+   SOIP_DB_Entry stEntry;
+   VOID *pIter = NULL;
+   int rval = ISNS_NO_SUCH_ENTRY_ERR;
+
+   key.tag = ISCSI_IDX_KEY;
+   while(SUCCESS == SNSdbGetNextOfData(&key, &pIter, &stEntry))
+   {
+        if(0 == strcmp(pcName, stEntry.data.iscsi_idx.v))
+        {
+            rval = SUCCESS;
+            memcpy(pstOut, &stEntry.data.iscsi_idx, sizeof(SOIP_ISCSI_Index));
+            break;
+        }
+   }
 
    return rval;
 }
@@ -440,18 +472,23 @@ write_ISCSIidxObject
 Writes a index object from the database
 *********************************************************************/
 int
-write_ISCSIidxObject (int id, SOIP_DB_Entry p_entry)
+write_ISCSIidxObject (IN const SOIP_ISCSI_Index *pstIndex)
 {
   ISNS_DBKey idx_key;
+  SOIP_DB_Entry p_entry;
   int rval;
 
-  if (id == 0)
+  if (pstIndex->uiIndex == 0 || pstIndex->iDdRefCount < 0)
+  {
+     __LOG_ERROR("ISCSI Name Index RefCout = %s(%d, %d)", pstIndex->v, pstIndex->uiIndex, pstIndex->iDdRefCount);
      return (ERROR);
+  }
 
   idx_key.tag = ISCSI_IDX_KEY;
   idx_key.val.idx.index_type = ISCSI_IDX_KEY;
-  idx_key.val.idx.index = id;
-  rval = ISNSdbWrite(&idx_key,p_entry);
+  idx_key.val.idx.index = pstIndex->uiIndex;
+  memcpy(&p_entry.data.iscsi_idx, pstIndex, sizeof(SOIP_ISCSI_Index));
+  rval = ISNSdbWrite(&idx_key, p_entry);
 
   return rval;
 }

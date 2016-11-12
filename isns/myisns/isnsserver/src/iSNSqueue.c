@@ -1,45 +1,52 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 
 /*
- * This file contains source code for managing 
+ * This file contains source code for managing
  * queues of iSNS requests pending a response from
  * other SOIP service entities.
  *
  */
-#include "iSNS.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 #include "iSNStypes.h"
+#include "iSNS.h"
 #include "iSNSqueue.h"
 
 static int sns_retry_timeout = SNS_REQUEST_TIMEOUT;
@@ -53,7 +60,7 @@ static int sns_retry_timeout = SNS_REQUEST_TIMEOUT;
  * DISCOVERY, CLAIM etc.
  *
  */
-static struct SNS_Msg_Descp_Q  sns_q[SNS_NUM_QUEUES] = { {NULL, NULL}, 
+static struct SNS_Msg_Descp_Q  sns_q[SNS_NUM_QUEUES] = { {NULL, NULL},
                                                          {NULL, NULL} };
 
 
@@ -82,7 +89,7 @@ ISNSEnqReq (SNS_Queue_Name name, ISNS_Msg_Descp *p_md)
     if (name > SNS_NUM_QUEUES)
        return;
 
-    /*  
+    /*
      * Add the message to the end of the request queue
      */
      if (sns_q[name].tail != NULL)
@@ -96,26 +103,21 @@ ISNSEnqReq (SNS_Queue_Name name, ISNS_Msg_Descp *p_md)
        /*
         * Compute the timeout based on other elements in the queue
         */
-#ifdef SNS_LINUX
         current_time       = (long double)time ((time_t*) 0);
-#else
-        current_time       = tickGet();
-#endif
-        p_md->cb.resp_timeout = current_time + 
+
+        p_md->cb.resp_timeout = current_time +
                                 (sns_retry_timeout * sysClkRateGet());
      }
      else
      {
         sns_q[name].head   = p_md;
-        sns_q[name].tail   = p_md; 
+        sns_q[name].tail   = p_md;
         p_md->cb.next      = NULL;
         p_md->cb.prev      = NULL;
-#ifdef SNS_LINUX
+
         current_time       = (long double)time ((time_t*) 0);
-#else
-        current_time       = tickGet();
-#endif
-        p_md->cb.resp_timeout = current_time + 
+
+        p_md->cb.resp_timeout = current_time +
                                 (sns_retry_timeout * sysClkRateGet());
      }
 
@@ -127,9 +129,9 @@ ISNS_Msg_Descp *
 ISNSQHead (SNS_Queue_Name name)
 {
     if (name > SNS_NUM_QUEUES)
-       return (NULL); 
+       return (NULL);
 
-    return(sns_q[name].head); 
+    return(sns_q[name].head);
 }
 
 
@@ -148,10 +150,10 @@ ISNSDeqReq (SNS_Queue_Name name, uint16_t xid, int tid)
 
     for (p_md = sns_q[name].head; p_md != NULL; p_md = p_md->cb.next)
     {
-       /* 
+       /*
         * Check the task id queue. If there is a task id
         * in here it means that the async function is active for this task.
-        * Get the iSNS info from the tid queue. Otherwise its the sync 
+        * Get the iSNS info from the tid queue. Otherwise its the sync
         * function that is active. Get the info from the transaction queue.
         */
         if (name == ISNS_CALLBACK_QUEUE && tid != 0)
@@ -184,17 +186,17 @@ ISNSDeqReq (SNS_Queue_Name name, uint16_t xid, int tid)
 
             return (p_md);
          }
-         else 
+         else
          {
              p_tmp = p_md->cb.prev;
              if (p_tmp != NULL)
-                 p_tmp->cb.next = p_md->cb.next; 
+                 p_tmp->cb.next = p_md->cb.next;
              else
                 sns_q[name].head = p_md->cb.next;
-           
+
              p_tmp = p_md->cb.next;
              if (p_tmp != NULL)
-                p_tmp->cb.prev = p_md->cb.prev; 
+                p_tmp->cb.prev = p_md->cb.prev;
              else
                 sns_q[name].tail = p_md->cb.prev;
          }
@@ -208,11 +210,11 @@ SNSGetReq (SNS_Queue_Name name, int xid, int tid)
 {
     ISNS_Msg_Descp  *p_md;
 
-    /* 
+    /*
      * Init the local vars.
      */
     p_md = NULL;
-    /* 
+    /*
      * Validate the queue.
      */
     if (name > SNS_NUM_QUEUES)
@@ -220,15 +222,15 @@ SNSGetReq (SNS_Queue_Name name, int xid, int tid)
 
     if (sns_q[name].head == NULL)
        return(NULL);
-    /* 
+    /*
      * Go through the list and find the entry.
      */
     for (p_md = sns_q[name].head; p_md != NULL; p_md = p_md->cb.next)
     {
-       /* 
+       /*
         * Check the task id queue. If there is a task id
         * in here it means that the async function is active for this task.
-        * Get the iSNS info from the tid queue. Otherwise its the sync 
+        * Get the iSNS info from the tid queue. Otherwise its the sync
         * function that is active. Get the info from the transaction queue.
         */
         if (name == ISNS_CALLBACK_QUEUE && tid != 0)

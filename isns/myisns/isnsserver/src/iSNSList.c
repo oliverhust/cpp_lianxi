@@ -31,8 +31,15 @@
 
 ***********************************************************************/
 
-#include "iSNS.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 #include "iSNStypes.h"
+#include "iSNS.h"
 #include "iSNSList.h"
 #include "iSNSdb.h"
 #include "iSNSbuffer.h"
@@ -68,9 +75,9 @@ DeleteList(ISNS_LIST *pstList)
     pParent = ISNS_MEM_List_GetParent(pstList);
 
     /* 所有删除操作先从LDAP/DBM开始 */
-    iRet |= ISNS_LDAP_List_Free(pstList->list_id, pParent);
+    iRet |= ISNS_LDAP_List_Delete(pstList->list_id, pParent);
 
-    iRet |= ISNS_MEM_List_Free(pstList);
+    iRet |= ISNS_MEM_List_Delete(pstList);
 
     return iRet;
 }
@@ -86,6 +93,7 @@ RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 
     if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
+        __LOG_ERROR ("Remove Node: Not init, listId=%d", pstList->list_id);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -100,7 +108,7 @@ RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 }
 
 /********************************************************************
-Retrieves the data pointer from a node.
+Retrieves the data pointer from a node.  尽量不要用这个不安全的函数
 ********************************************************************/
 void *
 GetNodeData(ISNS_LIST_NODE *pnode )
@@ -151,6 +159,7 @@ IsEmptyList(ISNS_LIST *pstList)
 
 /********************************************************************
 Returns the next node in a list.
+尽量不要用这个不安全的函数，用GetNextData代替
 ********************************************************************/
 ISNS_LIST_NODE *
 GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
@@ -158,4 +167,38 @@ GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
     return ISNS_MEM_List_GetNext(pstList, pstNode, NULL, NULL);
 }
 
+/********************************************************************
+Returns the next node AND DATA in a list.
+eg:  ISNS_LIST_NODE *pstNode = NULL;  //必须初始化为NULL
+     SOIP_Dd_Member stMember;
+     SOIP_Dd dd = xxx;
+     while(SUCCESS == GetNextData(&dd->member_list, &pstNode, &stMember, sizeof(stMember)))
+     {
+        xxxxxx (这里面使用取到的stMember)
+     }
+********************************************************************/
+ULONG
+GetNextData(IN ISNS_LIST *pstList, INOUT ISNS_LIST_NODE **ppstNode,
+            OUT CHAR *pcOutBuff, IN UINT uiBuffSize)
+{
+    ISNS_LIST_NODE *pstNext;
+    const CHAR *pcTmpData = NULL;
+    INT iSize = 0;
+
+    pstNext = ISNS_MEM_List_GetNext(pstList, *ppstNode, &pcTmpData, &iSize);
+    if(NULL == pstNext)
+    {
+        return ISNS_NO_SUCH_ENTRY_ERR;  /* 遍历到最后一个了 */
+    }
+    if((UINT)iSize > uiBuffSize)
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memcpy(pcOutBuff, pcTmpData, iSize);
+    memset(pcOutBuff + iSize, 0, uiBuffSize - (UINT)iSize);
+    *ppstNode = pstNext;
+
+    return SUCCESS;
+}
 

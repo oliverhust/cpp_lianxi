@@ -33,11 +33,13 @@
 #include "iSNSdbMem.h"
 #include "iSNSMemData.h"
 
+#define ISNS_MEM_LIST_GLOBAL_NUM             16
 
 typedef enum
 {
     ISNS_MEM_INVALID = 0,
-    ISNS_MEM_BIN,      /* 二进制类型(数字/结构体) */
+    ISNS_MEM_BIN,      /* 二进制/数字类型 */
+    ISNS_MEM_NUM,      /* 数字类型(UINT32) */
     ISNS_MEM_STR,      /* 字符串类型(uiSize为最大空间) */
     ISNS_MEM_TYPE_MAX,
 }ISNS_MEM_TYPE_E;
@@ -54,8 +56,8 @@ STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemKey[ISNS_DATABASE_MAX] =
 {
     [ENTITY_ID_KEY] = {ISNS_MEM_STR, offsetof(ISNS_DBKey, val.entity_key.id), ENTITY_ID_SIZE},
     [PORTAL_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.portal_key), sizeof(SOIP_Portal_Key)},
-    [DDS_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.dds_key.id), DDS_KEY_SIZE},
-    [DD_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.dd_key.id), DD_KEY_SIZE},
+    [DDS_ID_KEY] = {ISNS_MEM_NUM, offsetof(ISNS_DBKey, val.dds_key.id), DDS_KEY_SIZE},
+    [DD_ID_KEY] = {ISNS_MEM_NUM, offsetof(ISNS_DBKey, val.dd_key.id), DD_KEY_SIZE},
     [ISCSI_ID_KEY] = {ISNS_MEM_STR, offsetof(ISNS_DBKey, val.iscsi_key.v), MAX_ISCSI_NODE_ID_SIZE},
     [PORTAL_GROUP_ID_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.portal_group_key), sizeof(SOIP_Portal_Group_Key)},
     [ENTITY_IDX_KEY] = {ISNS_MEM_BIN, offsetof(ISNS_DBKey, val.idx), sizeof(SOIP_IDX_Key)},
@@ -73,7 +75,7 @@ STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemValue[ISNS_DATABASE_MAX] =
     [ISCSI_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.scsi_node), sizeof(SOIP_Iscsi)},
     [PORTAL_GROUP_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_group), sizeof(SOIP_Portal_Group)},
     [ENTITY_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.entity_idx), sizeof(SOIP_Entity_Id)},
-    [ISCSI_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.iscsi_idx), sizeof(SOIP_ISCSI_Node_Id)},
+    [ISCSI_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.iscsi_idx), sizeof(SOIP_ISCSI_Index)},
     [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_idx), sizeof(SOIP_DB_Portal)},
 };
 
@@ -92,6 +94,10 @@ STATIC const UINT g_auiIsnsListOffset[DATA_LIST_MAX] =
 };
 
 int isns_list_debug = 0;
+STATIC UINT32 g_uiIsnsMemNumTmp = 0;
+
+STATIC UINT g_uiMemListGlobalCurr = 0;
+STATIC VOID *g_astMemListGlobal[ISNS_MEM_LIST_GLOBAL_NUM] = { 0 } ;
 
 /*********************************************************************
      Func Name : _isns_FormatByKey
@@ -127,13 +133,15 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
     }
 
     stKey.dptr = (CHAR *)pstDbKey + pstMem->uiOffset;
+    stKey.dsize = pstMem->uiSize;
     if(ISNS_MEM_STR == pstMem->enType)
     {
         stKey.dsize = strlen(stKey.dptr);
     }
-    else
+    else if(ISNS_MEM_NUM == pstMem->enType && sizeof(UINT32) ==  pstMem->uiSize)
     {
-        stKey.dsize = pstMem->uiSize;
+        g_uiIsnsMemNumTmp = htonl(*(UINT32 *)(UCHAR *)stKey.dptr);
+        stKey.dptr = (CHAR *)&g_uiIsnsMemNumTmp;
     }
 
     *pstOutKey = stKey;
@@ -214,6 +222,11 @@ STATIC ULONG _isns_Key2DbKey(IN UINT uiType, IN datum stKey, OUT ISNS_DBKey *pst
         __ISNS_COPY(pcDst, pstMem->uiSize-1, stKey.dptr, stKey.dsize);
         pstDbKey->len = stKey.dsize;
     }
+    else if(ISNS_MEM_NUM == pstMem->enType && sizeof(UINT32) == pstMem->uiSize)
+    {
+        *(UINT32 *)pcDst = ntohl(*(UINT32 *)(UCHAR *)stKey.dptr);
+        pstDbKey->len = sizeof(UINT32);
+    }
     else
     {
         memcpy(pcDst, stKey.dptr, pstMem->uiSize);
@@ -277,6 +290,8 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
 *********************************************************************/
 ULONG ISNS_MEM_Init(IN UINT uiMaxTypeCount)
 {
+    g_uiMemListGlobalCurr = 0;
+    memset(g_astMemListGlobal, 0, sizeof(g_astMemListGlobal));
     return ISNS_MEMDATA_Init(uiMaxTypeCount);
 }
 
@@ -308,7 +323,7 @@ VOID ISNS_MEM_Fini()
          Input : IN const ISNS_DBKey *pstDbKey, IN SOIP_DB_Entry *pstEntry
         Output : 无
         Return : 成功/失败
-       Caution : 无
+       Caution : pstDbKey只填TAG和VAL
 ----------------------------------------------------------------------
  Modification History
     DATE        NAME             DESCRIPTION
@@ -528,11 +543,13 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
 *********************************************************************/
 BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstList)
 {
-    if(pstList->list_id <= 0 || pstList->list_id >= DATA_LIST_MAX ||
-       NULL == pstList->pstHead)
+    if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX ||
+       NULL == pstList->pstHead || NULL == pstList->pstHead->stHead.pstNext ||
+       NULL == pstList->pstHead->stHead.pstPrev)
     {
         return BOOL_FALSE;
     }
+
     return BOOL_TRUE;
 }
 
@@ -555,9 +572,13 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 {
     ISNS_LIST *pstList = NULL;
 
-    if(0 < iListId && iListId < DATA_LIST_MAX)
+    if(DATA_LIST_INVALID < iListId && iListId < DATA_LIST_MAX)
     {
         pstList = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId]);
+    }
+    else if(DATA_LIST_MAX < iListId && iListId < DATA_LIST_OLD_MAX)
+    {
+        return SUCCESS;
     }
     else
     {
@@ -581,7 +602,7 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEM_List_Free
+     Func Name : ISNS_MEM_List_Delete
   Date Created : 2016/10/26
         Author : liangjinchao@dian
    Description : 删除/去初始化列表
@@ -595,7 +616,7 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList)
+INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstList)
 {
     DTQ_HEAD_S *pstHead = pstList->pstHead;
     ISNS_LIST_NODE *pstNode;
@@ -618,6 +639,7 @@ INT ISNS_MEM_List_Free(IN ISNS_LIST *pstList)
         free(pstNode);
     }
 
+    memset(pstList->pstHead, 0, sizeof(DTQ_HEAD_S));
     free(pstList->pstHead);
     pstList->pstHead = NULL;
 
@@ -696,13 +718,36 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
 *********************************************************************/
 VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize)
 {
+    VOID **ppData;
+
     __DEBUG (isns_list_debug &1, GetNodeData);
     if(NULL != piSize)
     {
         *piSize = pstNode->data_size;
     }
 
-    return ( pstNode->data );
+    if(g_uiMemListGlobalCurr >= ISNS_MEM_LIST_GLOBAL_NUM)
+    {
+        return NULL;
+    }
+
+    ppData = &g_astMemListGlobal[g_uiMemListGlobalCurr];
+    if(NULL != *ppData)
+    {
+        free(*ppData);
+        *ppData = NULL;
+    }
+
+    *ppData = malloc(pstNode->data_size);
+    if(NULL == *ppData)
+    {
+        return NULL;
+    }
+
+    memcpy(*ppData, pstNode->data, pstNode->data_size);
+    g_uiMemListGlobalCurr = (g_uiMemListGlobalCurr + 1) % ISNS_MEM_LIST_GLOBAL_NUM;
+
+    return *ppData;
 }
 
 /*********************************************************************
@@ -824,12 +869,12 @@ BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
      Func Name : ISNS_MEM_List_GetNext
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 获取下一个节点及数据，不存在返回NULL
-                 OUT CHAR *ppcData, OUT INT *piSize可以为NULL
+   Description : 获取下一个节点及数据，不存在返回NULL *piSize可以为NULL
          Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
         Output : OUT CHAR *ppcData, OUT INT *piSize
         Return : 下一个节点
-       Caution : *ppcData为const char *类型，外部不应修改
+       Caution : *ppcData为const char *类型，外部不应修改,
+                 外部需要先判断返回值是否为NULL再取数据
 ----------------------------------------------------------------------
  Modification History
     DATE        NAME             DESCRIPTION
@@ -843,10 +888,15 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *
 
     __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
 
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX)
     {
         __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
         return NULL;
+    }
+    else if(NULL == pstList->pstHead || NULL == pstList->pstHead->stHead.pstNext ||
+            NULL == pstList->pstHead->stHead.pstPrev)
+    {
+        return NULL;     /* 空LIST */
     }
 
     if(NULL == pstNode)

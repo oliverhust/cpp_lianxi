@@ -36,8 +36,15 @@
  * iSNS database.
  *
  */
-#include "iSNS.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+
 #include "iSNStypes.h"
+#include "iSNS.h"
 #include "iSNSmsg.h"
 #include "iSNSList.h"
 #include "iSNSdb.h"
@@ -1204,92 +1211,168 @@ ISNSdbAddAttrDDS ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg )
 
 /*********************************************************************
 _SNSdbAddAttrDD
-
+aotur: yangxiaozhou
 Adds one or more DD to the database.
 *********************************************************************/
 int
 ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
-{
+{  //注册报文里面，零长TLV字段与没有这个字段是一样的
    int         ii;
    int         rval;
-   int         ddKeyIndex;
-   int         ddAttrIndex;
+   int         ddKeyIndex = -1;  //标识Message Key中是否有DD ID字段
+   int         ddAttrIndex = -1; //标识Operating Attributes中是否有DD ID字段
    int         ddSymIndex;
    int         saveIndex;
    int         stopFlag;
-   int         newRegFlag;
-   int         updateFlag;
+   int         newRegFlag;  //标识是否为创建操作
    int         newMemberFlag;
    int         s;
    uint32_t    new_scn_bitmap;
-   ISNS_Key    *key;
-   ISNS_Attr   *attr;
+   ISNS_Key    *key;        //临时存储object的key值
+   ISNS_Attr   *attr;       //临时存储一个完整的字段TLV
    ISNS_Key    newKey;
    SOIP_Dd     *p_dd;
    SOIP_DD_Key dd_key;
-   ISNS_Attr   *src_attr;
-   ISNS_Attr   *attr_indx[SNS_MAX_ATTRS];
-   ISNS_Attr   *key_indx[SNS_MAX_ATTRS];
+   ISNS_Attr   *src_attr;   //src_attr是个一维数组，指向Source Attrubute开头
+   ISNS_Attr   *attr_indx[SNS_MAX_ATTRS];  //attr_indx是个二维数组，指向Operating Attrubutes开头
+   ISNS_Attr   *key_indx[SNS_MAX_ATTRS];   //key_indx是个二维数组，指向Message Key开头
    char        *p_sym;
    int         symIndex;
    uint32_t    iscsi_idx;
 
+// 自己加的变量
+   int         ddReplaceFlag;    //判断Message Key中是否有DD ID字段
+   int         temp_start_index = 0;
+   int         temp_ddKeyIndex = 0;
+   int         message_key_flag = FALSE;
+   int         message_key_dd_id = 0;
+   int         updateDDNameFlag = FALSE;
+   int         updateDDFeatureFlag = FALSE;
+   int         updateDDMemberFlag = FALSE;
+   int         number_of_DDMember = 0;
+   char        temp_dd_sym_name[DD_SYM_NAME_SIZE];
+   SOIP_Dd     old_dd;
+   SOIP_ISCSI_Index   DD_iSCSI_Member[SNS_MAX_ATTRS];
+
+//   ISNS_Attr   temp_attr;       //临时存储一个完整的字段TLV
+
    __DEBUG (isns_reg_debug & 1, (Registering DD));
-   ISNSParseMsg(&p_md->msg, attr_indx, key_indx, &src_attr);
+   rval = ISNSParseMsg(&p_md->msg, attr_indx, key_indx, &src_attr);
+
+   //回复报文的Message Key与请求报文的Message Key保持一致
+   for(ii = 0; ii < SNS_MAX_ATTRS && key_indx[ii]; ii++)
+   {
+     if( Check_Type_Of_Attributes(key_indx[ii]) == 1) //整型类型
+     {
+        ISNSAppendKey (p_rspmsg, (ISNS_Attr *)key_indx[ii]->tag, (ISNS_Attr *)key_indx[ii]->len, NULL, *(uint32_t *) & key_indx[ii]->val);
+     }
+     else if( Check_Type_Of_Attributes(key_indx[ii]) == 2) //字符串类型
+     {
+        ISNSAppendKey (p_rspmsg, (ISNS_Attr *)key_indx[ii]->tag, (ISNS_Attr *)key_indx[ii]->len, (char *) & key_indx[ii]->val, 0);
+     }
+   }
+   ISNSAppendKey (p_rspmsg, ISNS_DELIMITER, ISNS_DELIMITER_SIZE, NULL, 0);
+
+   if( rval != SUCCESS )          //报文中有不合法的字段将会在回复报文中返回
+     return (ISNS_INVALID_REG_ERR);
 
    rval = Check_Authorization (src_attr);
    if (rval != SUCCESS)
+   {
+     //返回无效的source attribute字段
+     ISNSAppendAttr (p_rspmsg, (ISNS_Attr *)src_attr->tag, (ISNS_Attr *)src_attr->len, (char *) & src_attr->val, 0);
      return (ISNS_AUTH_FAILED_ERR);
+   }
 
-   /* Search the keys for DD_Set. */
-   ddKeyIndex = ISNSFindTag (0, ISNS_DD_ID, key_indx);
+   //Message Key有多个字段属于报文格式错误
+   if((TRUE && key_indx[1]))
+   {
+     return (ISNS_MSG_FMT_ERR);
+   }
+   //Message Key第一个字段不是DD ID也属于报文格式错误
+   else if( (TRUE && key_indx[0]) && ((ISNS_Attr *)key_indx[0]->tag != ISNS_DD_ID ) )
+   {
+     if( Check_Type_Of_Attributes(key_indx) == 1)
+     {
+       ISNSAppendAttr (p_rspmsg, (ISNS_Attr *)key_indx[0]->tag, (ISNS_Attr *)key_indx[0]->len, NULL, *(uint32_t *) & key_indx[0]->val);
+     }
+     else if( Check_Type_Of_Attributes(key_indx) == 2)
+     {
+       ISNSAppendAttr (p_rspmsg, (ISNS_Attr *)key_indx[0]->tag, (ISNS_Attr *)key_indx[0]->len, (char *) & key_indx[0]->val, 0);
+     }
+     return (ISNS_INVALID_REG_ERR);
+   }
+   else if( (TRUE && key_indx[0]) && ((ISNS_Attr *)key_indx[0]->tag == ISNS_DD_ID ) ) //Message Key中有DD ID字段
+   { //第一个字段为DD ID,当Message Key第一个字段有内容时，TRUE && key_indx[0]为1，否则为0
+     ddKeyIndex = 0;
+   }
+
    if (ddKeyIndex != -1)
    {
+      //将Message Key中的DD ID值取出来，存放在临时变量key中
       key = (ISNS_Key *)(key_indx[ddKeyIndex]);
       if (key->len == 0)
       {
+         //Message Key中DD ID是零长TLV，属于创建操作
          ddKeyIndex = -1;
+      }
+      else
+      {
+        //将报文中Message Key中的DD ID保存下来，以判断其是否与Operating Attributes中
+        //的DD ID相同
+        message_key_dd_id = key->val.dd_id;
       }
    }
 
-   saveIndex = 0;
+   //ddKeyIndex = -1，表创建DD，否则Message Key中第ddKeyIndex个字段就是指定的 DD ID
+   ddReplaceFlag = FALSE;  //初始化标志位，该标识位将标识请求报文是创建DD还是修改DD操作
+   saveIndex = 0;   //saveIndex指明当前是对Operating Attributes中具体哪一个字段进行操作
+
+   /* 开始解析Operating Attributes */
    while (saveIndex < SNS_MAX_ATTRS)
    {
+      //遍历Operating Attributes中的所有字段
       newRegFlag = FALSE;
-      if (ddKeyIndex == -1)
-      {
-         /* DD_ID Tag not found in keys */
-
-         /* Search the op_attr */
-         ddAttrIndex = ISNSFindTag (saveIndex, ISNS_DD_ID, attr_indx);
-         if (ddAttrIndex != -1)
-         {
-            key = (ISNS_Key *)(attr_indx[ddAttrIndex]);
-            saveIndex = ddAttrIndex + 1;
-            if (key->len == 0)
-            {
-               ddAttrIndex = -1;
-            }
-         }
-      }
 
       if (ddKeyIndex != -1)
       {
          /* DD_ID was found in the key */
          /* Use it to fetch */
+         //Message Key中有非零长DD ID字段
          key = (ISNS_Key *)(key_indx[ddKeyIndex]);
+         ddReplaceFlag = TRUE;   //表修改DD操作
       }
-      else if (ddAttrIndex != -1)
-      {
-         /* DD_ID was found in the op attr */
-         /* Use it to fetch */
-         key = (ISNS_Key *)(attr_indx[ddAttrIndex]);
 
-      }
-      else
+      else if (ddKeyIndex == -1) //Message Key中未找到非零长DD ID字段
       {
+         /* DD_ID Tag not found in keys */
+         /* Search the op_attr */
+         ddAttrIndex = ISNSFindTag (saveIndex, ISNS_DD_ID, attr_indx);
+         if (ddAttrIndex != -1) // 在Operating Attributes中找到DD ID字段
+         {
+            key = (ISNS_Key *)(attr_indx[ddAttrIndex]);
+            saveIndex = ddAttrIndex + 1;
+            if (key->len == 0)
+            {
+               //Operating Attribute中的DD ID是零长TLV，系统将自动为其分配一个DD ID
+               ddAttrIndex = -1;
+            }
+            else if( (message_key_dd_id != 0) && (message_key_dd_id != key->val.dd_id) )
+            {
+               //Operating Attribute中的DD ID有值，且其不与Message Key中的相一致
+               //则返回错误
+               ISNSAppendAttr (p_rspmsg, ISNS_DD_ID, DD_ID_SIZE, NULL, key->val.dd_id);
+               return (ISNS_INVALID_REG_ERR);
+            }
+        }
+
+         if (ddAttrIndex == -1)
+         {
          /* Generate a Unique DD_ID, or retrieve the id of a dd
             with the same symbolic name. */
+
+         // Message Key中没有非零长DD ID字段，且Operating Attributes中也没有
+         memset(&newKey, 0, sizeof(ISNS_Key));
          newKey.len = 4;
 
          /* First try to see if a DD_ID is associated with this
@@ -1297,7 +1380,7 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
          symIndex = ISNSFindTag(saveIndex, ISNS_DD_SYM_NAME, attr_indx);
          p_sym = NULL;
          if (symIndex != -1)
-         {
+         {  //根据DD_Sym_Name找DD_ID
             attr = (ISNS_Attr *)attr_indx[ symIndex ];
             p_sym = (char *)&attr->val;
             *(uint32_t *) &newKey.val = ISNS_GetDD_ID_from_sym( p_sym );
@@ -1308,18 +1391,30 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
             *(uint32_t *) & newKey.val = ISNS_GetNewDD_ID ();
 
          key = &newKey;
+         }
       }
 
+      //以上的判断语句确定了 ddKeyIndex 和 ddAttrIndex 的值
+      //要修改或创建的DD其key值存在key变量中。
       dd_key.id = *(uint32_t *) &key->val;
       rval = read_DDObject(dd_key.id, &p_dd, &entry);
-      if ( (rval == SUCCESS) && (p_md->msg.hdr.flags & ISNS_FLAG_REPLACE_REG) )
+      memset(&old_dd, 0, sizeof(SOIP_Dd));
+      memcpy(&old_dd, p_dd, sizeof(SOIP_Dd));
+
+      //如果Message Key中指定的DD不存在，返回错误。
+      if( (rval != SUCCESS) && (TRUE == ddReplaceFlag) )
       {
-         SNSdbRemoveDD_Entry ( dd_key.id, NULL, NULL );
-         rval = ERROR;
+          ISNSAppendAttr (p_rspmsg, ISNS_DD_ID, DD_ID_SIZE, NULL, dd_key.id);
+          return (ISNS_INVALID_REG_ERR);
+      }
+      //创建一个已存在的DD，直接返回Success
+      else if( (rval == SUCCESS) && (FALSE == ddReplaceFlag) )
+      {
+          return (ISNS_NO_ERR);
       }
 
       if ( rval != SUCCESS)
-      {
+      {  //创建DD操作
          __DEBUG (isns_reg_debug &1,(Create a new DD element));
          /* Create a new DD element */
          memset ( &entry, 0, sizeof (SOIP_DB_Entry) );
@@ -1327,14 +1422,32 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
 
          if (-1 == (ddSymIndex = ISNSFindTag(saveIndex, ISNS_DD_SYM_NAME, attr_indx)))
          {
-            return (ISNS_INVALID_REG_ERR);
+            //未指定DD_Sym_Name
+            rval = ISNS_GetNewDD_Sym_Name( p_dd->id, temp_dd_sym_name );
+            if(rval != SUCCESS)
+            {
+                ISNSAppendAttr (p_rspmsg, ISNS_DD_SYM_NAME, 0, NULL, 0);
+                return (ISNS_UNKNOWN_ERR);//创建随即字符串时内存不足
+            }
+
+            strlcpy(p_dd->sym_name, temp_dd_sym_name, sizeof(temp_dd_sym_name));
+            //return (ISNS_INVALID_REG_ERR);
          }
          else
          {
             attr = (ISNS_Attr *)attr_indx[ddSymIndex];
             if (!strlen((char *)&attr->val))
             {
-               return (ISNS_INVALID_REG_ERR);
+               //指定的DD_Sym_Name是零长TLV
+               rval = ISNS_GetNewDD_Sym_Name( p_dd->id, temp_dd_sym_name );
+               if(rval != SUCCESS)
+               {
+                   ISNSAppendAttr (p_rspmsg, ISNS_DD_SYM_NAME, 0, NULL, 0);
+                   return (ISNS_UNKNOWN_ERR); //创建随即字符串时内存不足
+               }
+
+               strlcpy(p_dd->sym_name, temp_dd_sym_name, sizeof(temp_dd_sym_name));
+               //return (ISNS_INVALID_REG_ERR);
             }
          }
 
@@ -1344,11 +1457,11 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
          newRegFlag = TRUE;
       }
 
+      //接下来是注册DD的具体字段
       __DEBUG (isns_reg_debug &1, p_dd dds_dds_list id:%i,p_dd->dds_list.list_id);
       __DEBUG (isns_reg_debug &1, p_dd member_list id:%i,p_dd->member_list.list_id);
 
-      /* Prep the SCN message */
-      updateFlag = FALSE;
+      /* Prep the SCN message */ //准备SCN报文
       newMemberFlag = FALSE;
       new_scn_bitmap = 0;
       memset( p_scn_all_msg_buffer, 0, sizeof(ISNS_Msg));
@@ -1356,14 +1469,15 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       ISNSAppendKey(p_scn_all_msg_buffer, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
 
       stopFlag = FALSE;
-      newMemberFlag = FALSE;
       iscsi_idx = 0;
+      memset(DD_iSCSI_Member, 0, sizeof(SOIP_ISCSI_Index) * SNS_MAX_ATTRS);
+
       for (ii = saveIndex;
            (ii < SNS_MAX_ATTRS) && (attr_indx[ ii ]) && !stopFlag; ii++)
       {
          attr = (ISNS_Attr *) attr_indx[ii];
          switch (attr->tag)
-         {
+         {  //这里saveIndex已经指向Operating Attributes中的DD ID后面了
             case ISNS_DD_ID:
             {
                saveIndex = ii;
@@ -1372,7 +1486,10 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
             }
             case ISNS_DD_FEATURE_BITMAP:
             {
-               p_dd->feature = *(uint32_t *)&attr->val;
+               if(attr->len != 0)
+               {
+                   p_dd->feature = *(uint32_t *)&attr->val;
+               }
                break;
             }
             case ISNS_DD_SYM_NAME:
@@ -1382,30 +1499,63 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
                   if ( FALSE == Check_Unique_DD_Sym ( p_dd, (char *)&attr->val ) )
                   {
                      __DEBUG ( isns_reg_debug & 1,Error DD Symbolic name not unique);
+                     ISNSAppendAttr (p_rspmsg, ISNS_DD_SYM_NAME, attr->len, (char *)&attr->val, 0);
                      return ( ISNS_INVALID_REG_ERR );
                   }
                   strncpy ( p_dd->sym_name, (char *)&attr->val, sizeof(p_dd->sym_name) );
 
                   ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_SYM_NAME,
                                  attr->len, (char *)&attr->val, 0 );
-
-                  updateFlag = TRUE;
                }
                break;
             }
+            case ISNS_ISCSI_IDX:
             case ISNS_DD_ISCSI_MEMBER_IDX:
             {
-               iscsi_idx = *(uint32_t *)&attr->val;
-               break;
+               SOIP_DB_Entry entry;
+               SOIP_DB_Entry *p_entry = &entry;
+               void *ptr;
+
+               if(attr->len != 0)
+               {
+                 iscsi_idx = *(uint32_t *)&attr->val;
+                 //如果数据库中没找到指定index对应的node，则返回错误
+                 rval = read_ISCSIidxObject(iscsi_idx, &ptr, p_entry);
+                 if (rval != SUCCESS)
+                 {
+                   ISNSAppendAttr (p_rspmsg, ISNS_DD_ISCSI_MEMBER_IDX, ISNS_DD_ISCSI_MEMBER_IDX_SIZE, NULL, iscsi_idx);
+                   return (ISNS_NO_SUCH_ENTRY_ERR);
+                 }
+               }
+               //接下来的处理过程与添加iSCSI Name一样
+               memset(attr, 0, sizeof(ISNS_Attr));
+               attr->tag = ISNS_DD_ISCSI_MEMBER;
+               attr->len = sizeof((char *)&p_entry->data.iscsi_idx.v);
+               strlcpy(attr->val.node_name.v, (char *)&p_entry->data.iscsi_idx.v, attr->len);
             }
             case ISNS_ISCSI_NODE_ID:
             case ISNS_DD_ISCSI_MEMBER:
             {
+               //判断如果要添加DD Member的DD事先不存在，则先创建该DD
+               if(rval != SUCCESS)
+               {
+                    write_DDObject(dd_key.id, entry);
+                    rval = SUCCESS;
+               }
+
                s = Add_DD_to_ISCSI_Node ( p_dd, (char *)&attr->val );
 
-               Add_DD_Member ( p_dd, (char *) &attr->val,
+               //Add_DD_Member函数添加成员关系，返回值为DD Member Index
+               iscsi_idx = Add_DD_Member ( p_dd, (char *) &attr->val,
                   PAD4( strlen((char *)&attr->val) ),  ISNS_DD_ISCSI_MEMBER,
                   s == ISNS_NO_ERR?ISNS_DD_MEMBER_ENABLE:ISNS_DD_MEMBER_DISABLE, iscsi_idx);
+               if(iscsi_idx != 0)
+               {
+                   DD_iSCSI_Member[number_of_DDMember].uiIndex = iscsi_idx;
+                   strlcpy(DD_iSCSI_Member[number_of_DDMember].v, (char *) &attr->val, MAX_ISCSI_NODE_ID_SIZE);
+                   number_of_DDMember ++;
+                   updateDDMemberFlag = TRUE;
+               }
 
                ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_ISCSI_MEMBER, attr->len, (char *)&attr->val, 0);
                send_iscsi_scn_to_members (NULL, (char *)&attr->val, p_scn_all_msg_buffer, ISNS_SCN_OBJ_ADDED);
@@ -1421,7 +1571,6 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
 
                Add_DD_Member (p_dd, (char *) &attr->val, PORT_NAME_SIZE, ISNS_DD_IFCP_MEMBER,
                   s == ISNS_NO_ERR?ISNS_DD_MEMBER_ENABLE:ISNS_DD_MEMBER_DISABLE, 0);
-               updateFlag = TRUE;
                ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_IFCP_MEMBER, attr->len, (char *)&attr->val, 0);
                send_iscsi_scn_to_members (NULL, (char *)&attr->val, p_scn_all_msg_buffer, ISNS_SCN_OBJ_ADDED);
 
@@ -1434,19 +1583,53 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       }
 
       if (newRegFlag && !strlen(p_dd->sym_name))
-      {
+      {  //创建DD时没有DD_Sym_Name
          __DEBUG(isns_reg_debug &1, (Symbolic name missing));
          DeleteList( &p_dd->dds_list );
          DeleteList( &p_dd->member_list );
+         ISNSAppendAttr (p_rspmsg, ISNS_DD_SYM_NAME, 0, NULL, 0);
          return ( ISNS_INVALID_REG_ERR );
       }
       /* Store Entry */
       __DEBUG (isns_reg_debug &1, now write dd record dds_list id:%i,entry.data.dd.dds_list.list_id);
       rval = write_DDObject(dd_key.id, entry);
+      if( SUCCESS != rval)
+        return (ISNS_UNKNOWN_ERR);
+
       if ( newRegFlag )
          iSNS_stats.num_dd++;
 
-      ISNSAppendKey (p_rspmsg, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
+      if( !newRegFlag && (strcmp(old_dd.sym_name, p_dd->sym_name) != 0) )
+      {
+          updateDDNameFlag = TRUE;
+      }
+      if( !newRegFlag && (old_dd.feature != p_dd->feature) )
+      {
+          updateDDFeatureFlag = TRUE;
+      }
+
+      // 构造回复报文的Operating Attribtues，当成功创建或者更新DD后
+      // 在Operating Attributes中首先返回DD的DD ID字段
+      if( newRegFlag || updateDDNameFlag || updateDDFeatureFlag || updateDDMemberFlag )
+      ISNSAppendAttr (p_rspmsg, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
+
+      //DD ID后面紧跟修改了的DD属性
+      if( newRegFlag || updateDDNameFlag )
+      {
+          ISNSAppendAttr (p_rspmsg, ISNS_DD_SYM_NAME, TLV_String_Length(p_dd->sym_name), p_dd->sym_name, 0);
+      }
+      if( newRegFlag || updateDDFeatureFlag )
+      {
+          ISNSAppendAttr (p_rspmsg, ISNS_DD_FEATURE_BITMAP, ISNS_DD_FEATURE_BITMAP_SIZE, NULL, p_dd->feature);
+      }
+      if( updateDDMemberFlag)
+      {
+          for(ii = 0; ii < number_of_DDMember; ii++)
+          {
+              ISNSAppendAttr (p_rspmsg, ISNS_DD_ISCSI_MEMBER, TLV_String_Length( DD_iSCSI_Member[ii].v ), DD_iSCSI_Member[ii].v, 0);
+              ISNSAppendAttr (p_rspmsg, ISNS_DD_ISCSI_MEMBER_IDX, ISNS_DD_ISCSI_MEMBER_IDX_SIZE, NULL, DD_iSCSI_Member[ii].uiIndex);
+          }
+      }
 
       attr = (ISNS_Attr *)(attr_indx[saveIndex]);
       ddKeyIndex = -1;
@@ -1468,49 +1651,59 @@ Add_DD_Member ( SOIP_Dd * p_dd, char * p_node_name, int p_len, uint32_t type,
    ISNS_LIST_NODE *pnode;
    SOIP_Dd_Member *p_member;
    SOIP_Dd_Member new_member;
-   SOIP_Iscsi *p_node;
    int rval;
-   SOIP_DB_Entry  lentry;
-   int index_number;
+   SOIP_ISCSI_Index stIscsiIndex;
+   int index_number = 0;
+   int iDDID;
 
+   iDDID = p_dd->id;
    __DEBUG (isns_reg_debug &1, Add_DD_Member:%s, p_node_name);
-
-   rval = read_ISCSIObject(p_node_name, &p_node, &lentry);
-   if ( rval != SUCCESS)
-   {
-        index_number = index;
-   }
-   else
-   {
-      index_number = p_node->iscsi_index;
-   }
 
    pnode = NULL;
    while ((pnode = GetNextNode(&p_dd->member_list, pnode)))
-   {
+   {// 循环读取DD中的所有Member以判断该DD是否已包含这个Node Member了
       p_member = (SOIP_Dd_Member *)GetNodeData(pnode);
 
       if ((p_member->type == type) &&
           (0 == memcmp (p_member->node_id, p_node_name, strlen(p_node_name) )))
-      {
-         return (ISNS_NO_ERR);
+      {  //检测到原DD中已经有该Node Member了
+         return (0);
       }
    }
+    //走到这一步说明原DD内先前并没有这个Node Member
 
-   memset(&new_member, 0, sizeof(new_member));
+    // 获取node的index属性,如果nodeIdx表中可以查到node，直接用这个node的Index，
+    // 否则，分配一个新的Index
+    rval = read_ISCSIidxObjectByName(p_node_name, &stIscsiIndex);
+    if ( rval != SUCCESS)
+    {    //此时index_number为新分配的index
+       index_number = ISNSGetNewISCSIIdx();
+       memset(&stIscsiIndex, 0, sizeof(stIscsiIndex));
+       stIscsiIndex.iDdRefCount = 1;
+       stIscsiIndex.uiIndex = index_number;
+       strlcpy(stIscsiIndex.v, p_node_name, sizeof(stIscsiIndex.v));
+    }
+    else
+    {
+       index_number = stIscsiIndex.uiIndex;
+       stIscsiIndex.iDdRefCount++;
+    }
+    /* 新增对应关系 / 修改ISCSI INDEX 的DD引用计数 */
+    write_ISCSIidxObject(&stIscsiIndex);
 
-   new_member.type = type;
-   new_member.status = status;
-   __ISNS_COPY (new_member.node_id, sizeof(new_member.node_id), p_node_name, strlen(p_node_name));
-   new_member.node_idx = index_number;
+    memset(&new_member, 0, sizeof(new_member));
+    new_member.type = type;
+    new_member.status = status;
+    __ISNS_COPY (new_member.node_id, sizeof(new_member.node_id), p_node_name, strlen(p_node_name));
+    new_member.node_idx = index_number;
 
    __DEBUG (isns_reg_debug &1, Add_DD_Member member.type:%i,new_member.type);
    __DEBUG (isns_reg_debug &1, Add_DD_Member member.node_id:%s,new_member.node_id);
    __DEBUG (isns_reg_debug &1, Add_DD_Member member.node_idx:%i,new_member.node_idx);
-
+   //将Node Member添加到DD中
    AddNode(&p_dd->member_list, (char *)&new_member, sizeof(new_member));
 
-   return (ISNS_NO_ERR);
+   return (index_number);
 }
 
 /*********************************************************************
@@ -1597,7 +1790,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
    /* Also if the entry was found and the node_type is different then */
    /* don't de-register it */
    if ( (rval == SUCCESS) && (p_md->msg.hdr.flags & ISNS_FLAG_REPLACE_REG) )
-   {
+   {//删除原有Entity，创建新的Entity取代之
        if ( p_entity->node_type == node_type)
        {
          __DEBUG (isns_reg_debug &1, RemoveEntity);
@@ -1617,7 +1810,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
       p_idx = &entry3.data.entity_idx;
       __ISNS_COPY (p_idx, sizeof(entry3.data.entity_idx), &db_entity_id.id, sizeof(SOIP_Entity_Id));
       rval = write_EntityidxObject(p_entity->entity_index, entry3);
-
+      //这里是write Entity Index
       strncpy (p_entity->eid.id, db_entity_id.id, sizeof(p_entity->eid.id) );
       InitList(ENTITY_PORTAL_LIST, p_entity);
       InitList(ENTITY_ISCSI_LIST, p_entity);
@@ -1708,7 +1901,7 @@ SNSdbAddAttrEntity ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
 
    if ( newRegFlag )
       iSNS_stats.num_entity++;
-
+   //这里是write Entity
    rval = write_EntityObject(db_entity_id.id, entry);
    __DEBUG (isns_reg_debug & 1, (Save Entity:%i),rval);
 
@@ -2212,9 +2405,9 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
       }
 
       memset ( &db_node_name, 0, sizeof (db_node_name) );
-      strncpy ((char *) db_node_name.v, (char *) &key->val, key->len );
+      strlcpy ((char *) db_node_name.v, (char *) &key->val, key->len );
 
-      rval = read_ISCSIObject(db_node_name.v, &p_node, &entry);
+      rval = read_ISCSIObject(db_node_name.v, &p_node, &entry);// 读取Node判断其是否已存在于数据库中
       if ( (rval == SUCCESS) && (p_md->msg.hdr.flags & ISNS_FLAG_REPLACE_REG))
       {
          __DEBUG ( isns_reg_debug & 2, (Deregistering iSCSI Node %s), db_node_name.v);
@@ -2243,7 +2436,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
          if ( entityIndex != -1 )
          {
             key = (ISNS_Key *)( key_indx[ entityIndex ] );
-            strncpy(db_entity.id, (char *)&key->val, sizeof(db_entity.id) );
+            strlcpy(db_entity.id, (char *)&key->val, sizeof(db_entity.id) );
          }
          else
          {
@@ -2271,25 +2464,34 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                }
             }
 
-            strncpy(db_entity.id, (char *)&attr->val, sizeof(db_entity.id) );
+            strlcpy(db_entity.id, (char *)&attr->val, sizeof(db_entity.id) );
          }
 
          /* Create a new node entry */
          memset ( &entry, 0, sizeof (SOIP_DB_Entry) );
-         strncpy ( p_node->id.v, db_node_name.v, sizeof(p_node->id.v) );
+         strlcpy ( p_node->id.v, db_node_name.v, sizeof(p_node->id.v) );
          p_node->iscsi_id_len = PAD4(strlen(p_node->id.v));
 
-         p_node->iscsi_index = ISNSGetNewISCSIIdx();
+         // ISNSGetNewISCSIIdx()函数读取数据库，并创建一个新的Index
+         // 注意创建Node时，不慌马上调用ISNSGetNewISCSIIdx这个函数，先看看是否有某个DD
+         // 已经包含该Node了，Index有现成的
+         SOIP_ISCSI_Index stIscsiIndex;
+         if(SUCCESS != read_ISCSIidxObjectByName(p_node->id.v, &stIscsiIndex))
+         {
+             p_node->iscsi_index = ISNSGetNewISCSIIdx();
+             memset(&stIscsiIndex, 0, sizeof(stIscsiIndex));
+             strlcpy(stIscsiIndex.v, p_node->id.v, MAX_ISCSI_NODE_ID_SIZE);
+             stIscsiIndex.uiIndex = p_node->iscsi_index;
+             stIscsiIndex.iDdRefCount = 0;
+             rval = write_ISCSIidxObject(&stIscsiIndex);
+         }
+         else
+         {
+             p_node->iscsi_index = stIscsiIndex.uiIndex;
+         }
 
-         SOIP_ISCSI_Node_Id *p_idx;
-         memset (&entry3, 0, sizeof(SOIP_ISCSI_Node_Id));
 
-         p_idx = &entry3.data.iscsi_idx;
-         __ISNS_COPY (p_idx, sizeof(entry3.data.iscsi_idx), &p_node->id.v, sizeof(SOIP_ISCSI_Node_Id));
-
-         rval = write_ISCSIidxObject(p_node->iscsi_index, entry3);
-
-         strncpy ( p_node->entity_id.id, db_entity.id, sizeof(p_node->entity_id.id) );
+         strlcpy ( p_node->entity_id.id, db_entity.id, sizeof(p_node->entity_id.id) );
          InitList(ISCSI_DD_LIST, p_node );
 
          /* Setup for an entity fetch */
@@ -2354,7 +2556,7 @@ ISNSdbAddAttrISCSINode ( ISNS_Attr **attr_indx, ISNS_Attr **key_indx,
                safe_len = MIN( strlen(p_node->alias), attr->len );
                if ( !memcmp(p_node->alias, &attr->val, safe_len ) )
                {
-                  strncpy( p_node->alias, (char *)&attr->val, sizeof(p_node->alias) );
+                  strlcpy( p_node->alias, (char *)&attr->val, sizeof(p_node->alias) );
                   p_node->alias_len = safe_len;
                   ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_ALIAS,
                                  PAD4(strlen(p_node->alias)), p_node->alias, 0);
@@ -2745,6 +2947,41 @@ ISNS_GetNewDD_ID ( void )
    while ( rval == SUCCESS);
 
    return (current_ID);
+}
+
+/*********************************************************************
+_ISNS_GetNewDD_Sym_Name
+autor: yangxiaozhou
+Gets a new unique DD ID.
+*********************************************************************/
+int
+ISNS_GetNewDD_Sym_Name ( int dd_id, char *DDName )
+{
+   SOIP_Dd p_dd;
+   char szDDName[DD_SYM_NAME_SIZE];
+   char cdd_id[ISNS_LENGTH_INT_TO_STRING_FOURBYTES];
+   char *cRandomString;
+   int rval;
+
+   p_dd.id = dd_id;
+   do
+   {
+      itoa(dd_id, cdd_id, ISNS_ITOA_TEN);
+      //创建随即字符串后缀
+      cRandomString = GenRandomString(Lenth_Of_Random_String);
+
+      if(cRandomString != NULL)
+      { //构造默认DD_Sym_Name
+        snprintf(szDDName, sizeof(szDDName), "%s%s%s%s%s","default DD ", cdd_id, "(", cRandomString, ")");
+        rval = Check_Unique_DD_Sym(&p_dd, szDDName);
+      }
+      else
+        return (ERROR);
+   }
+   while ( rval == FALSE);  //重名则继续构造返回名
+   strlcpy(DDName, szDDName, sizeof(szDDName));
+
+   return (SUCCESS);
 }
 
 /*********************************************************************
@@ -3519,3 +3756,242 @@ Check_Authorization (ISNS_Attr *src_attr)
   else
       return ISNS_AUTH_FAILED_ERR;
 }
+
+/*********************************************************************
+autor:yangxiaozhou
+检测输入字段的合法性
+*********************************************************************/
+int
+Check_Authorization_Of_Attributes ( ISNS_Attr *attr )
+{
+    switch(attr->tag)
+    {   //4-255长度字符串类型
+        case ISNS_PORTAL_SYM_NAME:
+        case ISNS_ISCSI_NODE_ID:
+        case ISNS_ISCSI_ALIAS:
+        case ISNS_PORTAL_GROUP_ISCSI_NAME:
+        case ISNS_PORT_SYM_NAME:
+        case ISNS_FC4_DESC:
+        case ISNS_NODE_SYM_NAME:
+        case ISNS_VENDOR_ID:
+        case ISNS_DDS_SYM_NAME:
+        case ISNS_DD_SYM_NAME:
+        case ISNS_DD_ISCSI_MEMBER:
+        {
+            //字符串长度超过256，返回错误码
+            if( (attr->len > 256) | (attr->len < 4) && (attr->len > 0))
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //4字节长度整型
+        case ISNS_ENTITY_TYPE:
+        case ISNS_PROT_VER:
+        case ISNS_ENTITY_PERIOD:
+        case ISNS_ENTITY_IDX:
+        case ISNS_ENTITY_NEXT_IDX:
+        case ISNS_PORTAL_PORT:
+        case ISNS_ESI_INTERVAL:
+        case ISNS_ESI_PORT:
+        case ISNS_PORTAL_IDX:
+        case ISNS_SCN_PORT:
+        case ISNS_PORTAL_NEXT_IDX:
+        case ISNS_PORTAL_SECURITY_BITMAP:
+        case ISNS_ISCSI_TYPE:
+        case ISNS_ISCSI_SCN_BITMAP:
+        case ISNS_ISCSI_IDX:
+        case ISNS_ISCSI_NEXT_IDX:
+        case ISNS_PORTAL_GROUP_PORT:
+        case ISNS_PORTAL_GROUP_TAG:
+        case ISNS_PORTAL_GROUP_IDX:
+        case ISNS_PORTAL_GROUP_NEXT_IDX:
+        case ISNS_PORT_ID:
+        case ISNS_PORT_TYPE:
+        case ISNS_FC_HARD_ADDR:
+        case ISNS_FC_COS:
+        case ISNS_IFCP_SCN_BITMAP:
+        case iSNS_FC4_TYPE_QUERY_KEY:
+        case ISNS_COMPANY_OUI:
+        case ISNS_DDS_ID:
+        case ISNS_DDS_STATUS:
+        case ISNS_DD_ID:
+        case ISNS_DD_ISCSI_MEMBER_IDX:
+        case ISNS_DD_PORTAL_MEMBER_IDX:
+        case ISNS_DD_PORTAL_TCPUDP:
+        case ISNS_DD_FEATURE_BITMAP:
+        case ISNS_DD_NEXT_ID:
+        {
+            //字段长度不正确，返回错误码
+            if( (attr->len != 4) && (attr->len != 0) )
+                return (ISNS_INVALID_REG_ERR);
+
+            //DD ID为0时返回错误
+            if( (attr->tag == ISNS_DD_ID) && (attr->len != 0) && (attr->val.dd_id == 0) )
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //8字节长属性
+        case ISNS_TIMESTAMP:
+        case ISNS_WWNN_TOKEN:
+        case ISNS_PORT_NAME:
+        case ISNS_FABRIC_PORT_NAME:
+        case ISNS_NODE_NAME:
+        case ISNS_FC_NODE_IPA:
+        case ISNS_DD_IFCP_MEMBER:
+        {
+            if( (attr->len != 8) && (attr->len != 0) )
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //16字节长属性
+        case ISNS_MGMT_IP:
+        case ISNS_PORTAL_GROUP_IP:
+        case ISNS_PORTAL_IP:
+        case ISNS_FC_NODE_IP:
+        case ISNS_FC_PORT_IP:
+        case ISNS_DD_PORTAL_IP_ADDR:
+        {
+            if( (attr->len != 16) && (attr->len != 0) )
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //32字节长属性
+        case ISNS_FC4_TYPE:
+        {
+            if( (attr->len != 32) && (attr->len != 0) )
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //128字节长属性
+        case ISNS_FC4_FEATURE:
+        {
+            if( (attr->len != 128) && (attr->len != 0) )
+                return (ISNS_INVALID_REG_ERR);
+            break;
+        }
+        //变长属性
+        case ISNS_ENTITY_ISAKMP:
+        case ISNS_ENTITY_CERT:
+        case ISNS_PORTAL_CERT:
+        default:
+            break;
+    }
+
+    return (SUCCESS);
+}
+
+/*********************************************************************
+autor:yangxiaozhou
+构建DD_Sym_Name时，后面生成随机字符串
+*********************************************************************/
+char* GenRandomString(int length)
+{
+    int flag, i;
+    char* string;
+    srand((unsigned) time(NULL ));
+    if ((string = (char*) malloc(length)) == NULL )
+    {
+        //没有成功申请到内存时，返回NULL
+        return NULL ;
+    }
+
+    for (i = 0; i < length - 1; i++)
+    {
+        flag = rand() % 3;
+        switch (flag)
+        {
+            case 0:
+                string[i] = 'A' + rand() % 26;
+                break;
+            case 1:
+                string[i] = 'a' + rand() % 26;
+                break;
+            case 2:
+                string[i] = '0' + rand() % 10;
+                break;
+            default:
+                string[i] = 'x';
+                break;
+        }
+    }
+    string[length - 1] = '\0';
+    return string;
+}
+
+/*********************************************************************
+autor:yangxiaozhou
+判断字段类型
+*********************************************************************/
+int
+Check_Type_Of_Attributes ( ISNS_Attr *attr )
+{
+    switch(attr->tag)
+    {
+        //4字节长整型类型
+        case ISNS_ENTITY_TYPE:
+        case ISNS_PROT_VER:
+        case ISNS_ENTITY_PERIOD:
+        case ISNS_ENTITY_IDX:
+        case ISNS_ENTITY_NEXT_IDX:
+        case ISNS_PORTAL_PORT:
+        case ISNS_ESI_INTERVAL:
+        case ISNS_ESI_PORT:
+        case ISNS_PORTAL_IDX:
+        case ISNS_SCN_PORT:
+        case ISNS_PORTAL_NEXT_IDX:
+        case ISNS_PORTAL_SECURITY_BITMAP:
+        case ISNS_ISCSI_TYPE:
+        case ISNS_ISCSI_SCN_BITMAP:
+        case ISNS_ISCSI_IDX:
+        case ISNS_ISCSI_NEXT_IDX:
+        case ISNS_PORTAL_GROUP_PORT:
+        case ISNS_PORTAL_GROUP_TAG:
+        case ISNS_PORTAL_GROUP_IDX:
+        case ISNS_PORTAL_GROUP_NEXT_IDX:
+        case ISNS_PORT_ID:
+        case ISNS_PORT_TYPE:
+        case ISNS_FC_HARD_ADDR:
+        case ISNS_FC_COS:
+        case ISNS_IFCP_SCN_BITMAP:
+        case iSNS_FC4_TYPE_QUERY_KEY:
+        case ISNS_COMPANY_OUI:
+        case ISNS_DDS_ID:
+        case ISNS_DDS_STATUS:
+        case ISNS_DD_ID:
+        case ISNS_DD_ISCSI_MEMBER_IDX:
+        case ISNS_DD_PORTAL_MEMBER_IDX:
+        case ISNS_DD_PORTAL_TCPUDP:
+        case ISNS_DD_FEATURE_BITMAP:
+        case ISNS_DD_NEXT_ID:
+        {
+            //整型则返回1
+            return (1);
+        }
+        default:
+            //字符串类型则返回2
+            return (2);
+    }
+
+    return (SUCCESS);
+}
+
+/*********************************************************************
+autor:yangxiaozhou
+将String类型的长度进行四字节对齐
+*********************************************************************/
+int TLV_String_Length(char* string)
+{
+    int length = 0;
+
+    //截断字符串中的'\0'
+    while( string[length]!= 0) //'\0'的ASCII码为0
+    {
+      length ++;
+    }
+
+    if( (length % 4) != 0)
+    {
+      length += 4 - (length % 4);
+    }
+    return length;
+}
+

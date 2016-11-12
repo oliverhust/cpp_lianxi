@@ -36,6 +36,12 @@
  * iSNS database.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSmsg.h"
 #include "iSNSList.h"
@@ -44,7 +50,6 @@
 #include "iSNSquery.h"
 #include "iSNSresponse.h"
 #include "iSNSreg.h"
-#include "iSNStypes.h"
 #include "iSNScomm.h"
 #include "iSNSbuffer.h"
 #include "iSNStbl.h"
@@ -402,7 +407,7 @@ SNSdbGetAttrEntity (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
    {
       SOIP_ISCSI_Node_Id db_node_name;
       SOIP_Iscsi *p_node;
-      SOIP_ISCSI_Node_Id *ptr;
+      SOIP_ISCSI_Index *ptr;
 
       memset (&db_node_name, 0, sizeof (db_node_name));
       if (iSCSINodeIdxKeyFlag != -1)
@@ -629,6 +634,58 @@ SNSdbGetAttrDDEntry (int id, ISNS_Attr **attr_indx, ISNS_Msg * p_msg)
 }
 
 /*********************************************************************
+     Func Name : isns_ldap_checkKeyNum
+  Date Created : 2016/10/8
+        Author : liang
+   Description : ¡§a?¡ì?a?????3¡§???¡ê¡è?¡è?¨¦reset
+         Input : ISNS_Attr **key_indx       Message Key
+        Output : ?T
+        Return : sattus code
+       Caution :
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+
+int isns_ldap_checkKeyNum(ISNS_Attr **key_indx)
+{
+	int 		ii = 0;
+    ISNS_Key *	key;
+	int			keyfound = 0;
+
+	for (ii = 0; ii < MAX_PARSE_ATTRS && key_indx[ii]; ii++)
+    {
+        key = (ISNS_Key *)(key_indx[ii]);
+        switch ( key->tag )
+        {
+        case ISNS_ISCSI_NODE_ID:
+            return -1;
+            break;
+        case ISNS_ENTITY_ID:
+            return -1;
+            break;
+        case ISNS_PORT_NAME:
+            return -1;
+            break;
+        case ISNS_DD_ID:
+            if ( key->val.dd_id )
+                keyfound++;
+            break;
+        case ISNS_DDS_ID:
+            return -1;
+            break;
+        default:
+            /* Error condition */
+			return -1;
+            break;
+        }
+    }
+	return keyfound;
+}
+
+/*********************************************************************
 _SNSdbGetAttrDD
 
 Determines what to do to retrieve a DD's attributes
@@ -647,6 +704,7 @@ SNSdbGetAttrDD (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_att
    SOIP_Dds *p_dds;
    int ii;
    int rval;
+   int keynum;
    SOIP_DD_Key dds_key;
    SOIP_Iscsi *p_node;
    ISNS_LIST_NODE *pnode;
@@ -656,6 +714,10 @@ SNSdbGetAttrDD (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_att
    rval = Check_Authorization (src_attr);
    if (rval != SUCCESS)
       return (ISNS_AUTH_FAILED_ERR);
+
+   keynum = isns_ldap_checkKeyNum(key_indx);
+   if (1 < keynum)
+      return (ISNS_MSG_FMT_ERR);
 
    ISNSTouchEntity( src_attr );
 
@@ -701,7 +763,11 @@ SNSdbGetAttrDD (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src_att
           (rval =
            SNSdbGetAttrDDEntry (*(uint32_t *) & key->val, attr_indx,
                                 p_rspmsg)))
+      {
+         if(ISNS_NO_SUCH_ENTRY_ERR == rval)
+            rval = ISNS_NO_ERR;
          return (rval);
+      }
       found = TRUE;
    }
    else if (ddsKeyIndex != -1)
@@ -1354,7 +1420,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
    SOIP_ISCSI_Node_Id db_node_name;
    ISNS_LIST_NODE     *pnode;
    int                rval;
-   int            rc;
+   int		      rc;
 
    __DEBUG (isns_query_debug &1,(Attribute Query - ISCSI:%s),(char *)&src_attr->val);
 
@@ -1437,7 +1503,7 @@ ISNSdbGetAttrISCSI (ISNS_Attr **attr_indx, ISNS_Attr **key_indx, ISNS_Attr * src
 
       while (nodeIdxKeyIndex != -1)
       {
-         SOIP_ISCSI_Node_Id *ptr;
+         SOIP_ISCSI_Index *ptr;
          key = (ISNS_Key *)(key_indx[nodeIdxKeyIndex]);
          rval = read_ISCSIidxObject(key->val.index, &ptr, &entry3);
          if (rval != SUCCESS)
@@ -1776,7 +1842,7 @@ ISNSGetNextAttr( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       }
       else if (iscsiIdxKeyIndex != -1)
       {
-         SOIP_ISCSI_Node_Id *ptr;
+         SOIP_ISCSI_Index *ptr;
 
          key=(ISNS_Key *)(key_indx[iscsiIdxKeyIndex]);
 
@@ -2285,11 +2351,52 @@ ISNSdbProcessDDOpAttr (ISNS_Msg * p_msg, ISNS_Attr ** attr_indx,
    int ii;
    ISNS_Attr *attr;
    ISNS_LIST_NODE *pnode;
-   SOIP_Dd_Member *p_member;
+   SOIP_Dd_Member stMember;
    SOIP_DB_Entry lentry;
    int index_Flag = -1;
    int rval;
    SOIP_Dds *p_dds;
+
+   if(!attr_indx[0])
+   {
+        ISNSAppendAttr (p_msg, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
+        ISNSAppendAttr (p_msg, ISNS_DD_SYM_NAME,
+                         PAD4 (strlen (p_dd->sym_name)), p_dd->sym_name, 0);
+        ISNSAppendAttr (p_msg, ISNS_DD_FEATURE_BITMAP,
+                         ISNS_DD_FEATURE_BITMAP_SIZE, NULL, p_dd->feature);
+        pnode=NULL;
+         while ((pnode=GetNextNode(&p_dd->dds_list, pnode)))
+         {
+               ISNSAppendAttr (p_msg, ISNS_DDS_ID, ISNS_DDS_ID_SIZE, NULL,
+                               *(uint32_t *)GetNodeData(pnode));
+         }
+         pnode=NULL;
+         while ((pnode=GetNextNode(&p_dd->dds_list, pnode)))
+         {
+               rval = read_DDSObject(*(uint32_t *)GetNodeData(pnode), &p_dds, &lentry);
+               if (rval == SUCCESS)
+               {
+                 ISNSAppendAttr (p_msg, ISNS_DDS_SYM_NAME, PAD4(strlen(p_dds->sym_name)),p_dds->sym_name,0);
+               }
+         }
+         pnode = NULL;
+         while (SUCCESS == GetNextData(&p_dd->member_list, &pnode, &stMember, sizeof(stMember)))
+         {
+           if (stMember.type == ISNS_DD_ISCSI_MEMBER)
+           {
+               ISNSAppendAttr (p_msg, ISNS_DD_ISCSI_MEMBER,
+                               PAD4 (strlen (stMember.node_id)),
+                               stMember.node_id, 0);
+               index_Flag = ISNSFindTag (0, ISNS_DD_ISCSI_MEMBER_IDX, attr_indx);
+               if (index_Flag != -1 )
+                 if (stMember.type == ISNS_DD_ISCSI_MEMBER)
+                   ISNSAppendAttr (p_msg, ISNS_DD_ISCSI_MEMBER_IDX,
+                               ISNS_DD_ISCSI_MEMBER_IDX_SIZE,
+                               NULL, stMember.node_idx);
+           }
+         }
+
+   }
 
    for (ii = 0; (ii < SNS_MAX_ATTRS) && (attr_indx[ii]); ii++)
    {
@@ -2327,40 +2434,38 @@ ISNSdbProcessDDOpAttr (ISNS_Msg * p_msg, ISNS_Attr ** attr_indx,
          }
          break;
       case ISNS_DD_ISCSI_MEMBER:
-         pnode=NULL;
-         while ((pnode=GetNextNode(&p_dd->member_list, pnode)))
+         pnode = NULL;
+         while (SUCCESS == GetNextData(&p_dd->member_list, &pnode, &stMember, sizeof(stMember)))
          {
-           p_member=(SOIP_Dd_Member *)GetNodeData(pnode);
-           if (p_member->type == ISNS_DD_ISCSI_MEMBER)
+           if (stMember.type == ISNS_DD_ISCSI_MEMBER)
            {
                ISNSAppendAttr (p_msg, ISNS_DD_ISCSI_MEMBER,
-                               PAD4 (strlen (p_member->node_id)),
-                               p_member->node_id, 0);
+                               PAD4 (strlen (stMember.node_id)),
+                               stMember.node_id, 0);
                index_Flag = ISNSFindTag (0, ISNS_DD_ISCSI_MEMBER_IDX, attr_indx);
                if (index_Flag != -1 )
-                 if (p_member->type == ISNS_DD_ISCSI_MEMBER)
+                 if (stMember.type == ISNS_DD_ISCSI_MEMBER)
                    ISNSAppendAttr (p_msg, ISNS_DD_ISCSI_MEMBER_IDX,
                                ISNS_DD_ISCSI_MEMBER_IDX_SIZE,
-                               NULL, p_member->node_idx);
+                               NULL, stMember.node_idx);
            }
          }
          break;
       case ISNS_DD_IFCP_MEMBER:
-         pnode=NULL;
-         while ((pnode=GetNextNode(&p_dd->member_list, pnode)))
+         pnode = NULL;
+         while (SUCCESS == GetNextData(&p_dd->member_list, &pnode, &stMember, sizeof(stMember)))
          {
-            p_member=(SOIP_Dd_Member *)GetNodeData(pnode);
-            if (p_member->type == ISNS_DD_IFCP_MEMBER)
+            if (stMember.type == ISNS_DD_IFCP_MEMBER)
             {
                ISNSAppendAttr (p_msg, ISNS_DD_IFCP_MEMBER,
-                               ISNS_PORT_NAME_SIZE, p_member->node_id,
+                               ISNS_PORT_NAME_SIZE, stMember.node_id,
                                0);
                index_Flag = ISNSFindTag (0, ISNS_DD_ISCSI_MEMBER_IDX, attr_indx);
                if (index_Flag != -1 )
-                 if (p_member->type == ISNS_DD_ISCSI_MEMBER)
+                 if (stMember.type == ISNS_DD_ISCSI_MEMBER)
                    ISNSAppendAttr (p_msg, ISNS_DD_ISCSI_MEMBER_IDX,
                                ISNS_DD_ISCSI_MEMBER_IDX_SIZE,
-                               NULL, p_member->node_idx);
+                               NULL, stMember.node_idx);
             }
          }
          break;

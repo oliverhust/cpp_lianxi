@@ -1,19 +1,63 @@
+/***********************************************************************
+  Copyright (c) 2001, Nishan Systems, Inc.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+***********************************************************************/
+
+
+/*
+ * This file contains source code for implementing the
+ * main processing loop for the SoIP service task.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
+
 #ifndef LDAP_DEPRECATED
 #define LDAP_DEPRECATED 1
 #endif
-//#include <openldap/ldap.h>
-#include <ldap.h>
+#include <openldap/ldap.h>
+//#include <ldap.h>
 
 #include "iSNSNdb.h"
 #include "iSNSNdbLdap.h"
 
 static LDAP *g_pstLDAP = NULL;
-static char *g_pcBase = NULL;
+static NDB_INITIALIZE_S g_stInitData = { 0 };
 
 /* Search Cache */
 static LDAPMessage *g_pstRes = NULL;
@@ -35,19 +79,72 @@ static LDAPMessage *g_pstE = NULL;
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-static short _ldap_IsDnExist(LDAP *pstLd, const char *pcDN)
+static int _ldap_IsDnExist(LDAP *pstLd, const char *pcDN, short *pbIsExist)
 {
-    short bRet;
+    int iRet;
     LDAPMessage *pstRes;
 
-    bRet = 1;
-    if(LDAP_SUCCESS != ldap_search_s(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes))
+    *pbIsExist = 0;
+    iRet = ldap_search_s(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes);
+    if(LDAP_SUCCESS == iRet)
     {
-        bRet = 0;
+        *pbIsExist = 1;
+    }
+    else if(LDAP_NO_SUCH_OBJECT == iRet)
+    {
+        iRet = NDB_SUCCESS;
     }
 
     ldap_msgfree(pstRes);
-    return bRet;
+    return iRet;
+}
+
+/*****************************************************************************
+    Func Name: _ldap_TrySearch
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 尝试LDAP查找，如果失败则重连再试
+        Input: LDAP *pstLd,
+               const char *pcBase,
+               int iScope,
+               const char *pcFilter,
+               char **ppcAttrs,
+               int iAttrsonly,
+               LDAPMessage **ppstRes
+       Output: 成功/失败
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static inline int _ldap_TrySearch(
+    LDAP *pstLd,
+    const char *pcBase,
+    int iScope,
+    const char *pcFilter,
+    char **ppcAttrs,
+    int iAttrsonly,
+    LDAPMessage **ppstRes)
+{
+    int iRet;
+
+    iRet = ldap_search_s(pstLd, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
+    if(LDAP_NO_SUCH_OBJECT == iRet)
+    {
+        return iRet;
+    }
+    else if(LDAP_SUCCESS != iRet)
+    {
+        if(NDB_SUCCESS == ndb_ldap_reconnect())
+        {
+            iRet = ldap_search_s(pstLd, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
+        }
+    }
+
+    return iRet;
 }
 
 /*****************************************************************************
@@ -171,7 +268,7 @@ static void _ldap_ModBvalues_free(struct berval ***pppstData)
     struct berval **ppstData = *pppstData;
     int i;
 
-    if(NULL == pppstData)
+    if(NULL == ppstData)
     {
         return;
     }
@@ -261,7 +358,7 @@ static void _ldap_attrs_free(LDAPMod **ppstAttrs)
 *****************************************************************************/
 static int _ndb_CheckLdapInit()
 {
-    if(NULL == g_pstLDAP || NULL == g_pcBase)
+    if(NULL == g_pstLDAP || NULL == g_stInitData.pcBase)
     {
         return NDB_FAILED;
     }
@@ -336,7 +433,7 @@ static char *_ldap_GetValByDn(LDAP *pstLd, const char *pcDN, int *piDataSize)
 
     *piDataSize = 0;
 
-    if(LDAP_SUCCESS != ldap_search_s(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes))
+    if(LDAP_SUCCESS != _ldap_TrySearch(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes))
     {
         return pcData;
     }
@@ -413,7 +510,7 @@ static int _ndb_DirId2DirName(int iDirId, char *pcDirName, int iSize)
     Func Name: _ndb_Bin2HexStr_Alloc
  Date Created: 2016/10/8
        Author: liangjinchao@dian
-  Description: 二进制转BCD码
+  Description: 二进制数据转十六进制字符串
         Input: 无
        Output: 无
        Return: 无
@@ -424,28 +521,29 @@ static int _ndb_DirId2DirName(int iDirId, char *pcDirName, int iSize)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-static char *_ndb_Bin2HexStr_Alloc(void *pData, int iByteSize)
+static char *_ndb_Bin2HexStr_Alloc(const char *pcBinData, int iByteSize)
 {
-    char *pcRet, *pcPtr;
-    int i, iSize, iOffset = 0;
+    char *pcRet, *pcPtr, *pcHex = "0123456789ABCDEF";
+    unsigned char ucTmp;
+    int i;
 
-    iSize = 2 + 2 * iByteSize + 1;
-    pcRet = malloc(iSize);
+    pcRet = pcPtr = (char *)malloc(2 + 2 * iByteSize + 1);
     if(NULL == pcRet)
     {
         return pcRet;
     }
 
-    iOffset += snprintf(pcRet + iOffset, iSize - iOffset, "%s", "%x");
+    *pcPtr = '%';
+    *++pcPtr = 'x';
 
-    pcPtr = (char *)pData;
     for(i = 0; i < iByteSize; i++)
     {
-        iOffset += snprintf(pcRet + iOffset, iSize - iOffset, "%02X",
-                            (unsigned int)(unsigned char)(*pcPtr));
-        pcPtr++;
+        ucTmp = pcBinData[i];
+        *++pcPtr = pcHex[ucTmp >> 4];
+        *++pcPtr = pcHex[ucTmp & 0x0f];
     }
 
+    *++pcPtr = '\0';
     return pcRet;
 }
 
@@ -475,7 +573,7 @@ static char *_ndb_DnName_Alloc(int iDirId, const datum *pstKey)
     if(NULL == pstKey)
     {
         pcRet = malloc(NDB_NON_KEY_MAX_LEN + 1);
-        snprintf(pcRet, NDB_NON_KEY_MAX_LEN + 1, NDB_OBJ_OU"=%s,%s", szDirName, g_pcBase);
+        snprintf(pcRet, NDB_NON_KEY_MAX_LEN + 1, NDB_OBJ_OU"=%s,%s", szDirName, g_stInitData.pcBase);
         return pcRet;
     }
 
@@ -495,93 +593,14 @@ static char *_ndb_DnName_Alloc(int iDirId, const datum *pstKey)
 
     memset(pcRet, 0, iSize);
     snprintf(pcRet, iSize, "%s=%s,"NDB_OBJ_OU"=%s,%s",
-             NDB_ATTR_KEY, pcHexStr, szDirName, g_pcBase);
+             NDB_ATTR_KEY, pcHexStr, szDirName, g_stInitData.pcBase);
 
     free(pcHexStr);
     return pcRet;
 }
 
 /*****************************************************************************
-    Func Name: _ndb_FreePointer
- Date Created: 2016/10/8
-       Author: liangjinchao@dian
-  Description: 释放指针
-        Input: void **ppPtr
-       Output:
-       Return:
-      Caution:
-------------------------------------------------------------------------------
-  Modification History
-  DATE        NAME             DESCRIPTION
-  --------------------------------------------------------------------------
-
-*****************************************************************************/
-static void _ndb_FreePointer(void **ppPtr)
-{
-    void *pReal;
-
-    pReal = *ppPtr;
-
-    if(NULL != pReal)
-    {
-        free(pReal);
-        *ppPtr = NULL;
-    }
-
-    return ;
-}
-
-/*****************************************************************************
-    Func Name: ndb_ldap_open
- Date Created: 2016/10/8
-       Author: liangjinchao@dian
-  Description: 初始化ndb的全局变量，建立ldap连接
-        Input:
-       Output:
-       Return:
-      Caution:
-------------------------------------------------------------------------------
-  Modification History
-  DATE        NAME             DESCRIPTION
-  --------------------------------------------------------------------------
-
-*****************************************************************************/
-int ndb_ldap_init(const char *pcLdapUrl, const char *pcAdminDn, const char *pcPassword, const char *pcBase)
-{
-    int   iRet;
-    int   iProtocolVersion;
-
-    iRet = ldap_initialize(&g_pstLDAP, pcLdapUrl);
-    if (NDB_SUCCESS != iRet)
-    {
-        return iRet;
-    }
-
-    iProtocolVersion = LDAP_VERSION3;
-    iRet = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
-    if (NDB_SUCCESS != iRet)
-    {
-        return iRet;
-    }
-
-    iRet = ldap_simple_bind_s(g_pstLDAP, pcAdminDn, pcPassword);
-    if (NDB_SUCCESS != iRet)
-    {
-        return iRet;
-    }
-
-    g_pcBase = strdup(pcBase);
-    if(NULL == g_pcBase)
-    {
-        return NDB_FAILED;
-    }
-
-    return NDB_SUCCESS;
-
-}
-
-/*****************************************************************************
-    Func Name: ndb_ldap_set_dir
+    Func Name: _ndb_ldap_store_dir
  Date Created: 2016/10/8
        Author: liangjinchao@dian
   Description: 设置多个数据目录，目录编号从0开始，不同目录数据隔开存放
@@ -601,6 +620,7 @@ static int _ndb_ldap_store_dir(int iDirId)
     char szDirName[NDB_DIR_NAME_MAX_LEN + 1];
     char *pcDirDn;
     int iRet = NDB_SUCCESS;
+    short bIsDnExist;
 
     pcDirDn = _ndb_DnName_Alloc(iDirId, NULL);
     if(NULL == pcDirDn)
@@ -608,7 +628,12 @@ static int _ndb_ldap_store_dir(int iDirId)
         return NDB_FAILED;
     }
 
-    if(_ldap_IsDnExist(g_pstLDAP, pcDirDn))
+    if(NDB_SUCCESS != _ldap_IsDnExist(g_pstLDAP, pcDirDn, &bIsDnExist))
+    {
+        free(pcDirDn);
+        return NDB_FAILED;
+    }
+    if(bIsDnExist)
     {
         free(pcDirDn);
         return iRet;
@@ -637,7 +662,7 @@ static int _ndb_ldap_store_dir(int iDirId)
 }
 
 /*****************************************************************************
-    Func Name: ndb_ldap_set_dir
+    Func Name: ndb_ldap_dir_set
  Date Created: 2016/10/8
        Author: liangjinchao@dian
   Description: 设置多个数据目录，目录编号从0开始，不同目录数据隔开存放
@@ -651,7 +676,7 @@ static int _ndb_ldap_store_dir(int iDirId)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-int ndb_ldap_dir_set (int iDirCount)
+static int _ndb_ldap_dir_set (int iDirCount)
 {
     int i, iRet = NDB_SUCCESS;
 
@@ -663,6 +688,206 @@ int ndb_ldap_dir_set (int iDirCount)
             break;
         }
     }
+
+    return iRet;
+}
+
+
+/*****************************************************************************
+    Func Name: _ndb_FreePointer
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 释放指针
+        Input: char **ppPtr
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static void _ndb_FreePointer(char **ppPtr)
+{
+    void *pReal;
+
+    pReal = *ppPtr;
+
+    if(NULL != pReal)
+    {
+        free(pReal);
+        *ppPtr = NULL;
+    }
+
+    return ;
+}
+
+/*****************************************************************************
+    Func Name: _ndb_FreeInitData
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 释放初始化数据
+        Input:
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static void _ndb_FreeInitData()
+{
+    g_stInitData.iDirMaxCount = 0;
+    _ndb_FreePointer(&g_stInitData.pcAdminDn);
+    _ndb_FreePointer(&g_stInitData.pcBase);
+    _ndb_FreePointer(&g_stInitData.pcLdapUrl);
+    _ndb_FreePointer(&g_stInitData.pcPassword);
+}
+
+/*****************************************************************************
+    Func Name: _ndb_SaveInitData
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 保存初始化数据，便于重新连接
+        Input:
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+static int _ndb_SaveInitData(const NDB_INITIALIZE_S *pstNdbInit)
+{
+    int iRet = NDB_SUCCESS;
+
+    memset(&g_stInitData, 0, sizeof(g_stInitData));
+
+    g_stInitData.iDirMaxCount = pstNdbInit->iDirMaxCount;
+
+    g_stInitData.pcAdminDn = strdup(pstNdbInit->pcAdminDn);
+    if(NULL == g_stInitData.pcAdminDn)
+    {
+        return NDB_FAILED;
+    }
+
+    g_stInitData.pcBase = strdup(pstNdbInit->pcBase);
+    if(NULL == g_stInitData.pcBase)
+    {
+        return NDB_FAILED;
+    }
+
+    g_stInitData.pcLdapUrl = strdup(pstNdbInit->pcLdapUrl);
+    if(NULL == g_stInitData.pcLdapUrl)
+    {
+        return NDB_FAILED;
+    }
+
+    g_stInitData.pcPassword = strdup(pstNdbInit->pcPassword);
+    if(NULL == g_stInitData.pcPassword)
+    {
+        return NDB_FAILED;
+    }
+
+    return iRet;
+}
+
+/*****************************************************************************
+    Func Name: ndb_ldap_init
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 初始化ndb的全局变量，建立ldap连接
+        Input:
+       Output:
+       Return:
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+int ndb_ldap_init(const NDB_INITIALIZE_S *pstNdbInit)
+{
+    int   iRet;
+
+    g_pstLDAP = NULL;
+    g_pstRes = NULL;
+    g_pstE = NULL;
+
+    iRet = _ndb_SaveInitData(pstNdbInit);
+    if(NDB_SUCCESS != iRet)
+    {
+        return iRet;
+    }
+
+    iRet = ndb_ldap_reconnect();
+
+    return iRet;
+}
+
+/*****************************************************************************
+    Func Name: ndb_ldap_reconnect
+ Date Created: 2016/10/8
+       Author: liangjinchao@dian
+  Description: 重连LDAP SERVER (出错情况用 或
+               可用作启动时判断SERVER是否启动成功(反复调用直到返回成功))
+        Input: 无
+       Output: 无
+       Return: 连接成功NDB_SUCCESS或失败NDB_FAILED
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+int ndb_ldap_reconnect()
+{
+    int   iRet;
+    int   iProtocolVersion;
+    short bHasBase;
+
+    if(NULL == g_stInitData.pcAdminDn || NULL == g_stInitData.pcBase ||
+       NULL == g_stInitData.pcLdapUrl ||  NULL == g_stInitData.pcPassword)
+    {
+        return NDB_FAILED;
+    }
+
+    if(NULL == g_pstLDAP)
+    {
+        iRet = ldap_initialize(&g_pstLDAP, g_stInitData.pcLdapUrl);
+        if (NDB_SUCCESS != iRet)
+        {
+            return iRet;
+        }
+    }
+
+    iProtocolVersion = LDAP_VERSION3;
+    iRet = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
+    if (NDB_SUCCESS != iRet)
+    {
+        return iRet;
+    }
+
+    iRet = ldap_simple_bind_s(g_pstLDAP, g_stInitData.pcAdminDn, g_stInitData.pcPassword);
+    if (NDB_SUCCESS != iRet)
+    {
+        return iRet;
+    }
+
+    iRet = _ldap_IsDnExist(g_pstLDAP, g_stInitData.pcBase, &bHasBase);
+    if(NDB_SUCCESS != iRet || !bHasBase)
+    {
+        return NDB_FAILED;
+    }
+
+    iRet = _ndb_ldap_dir_set(g_stInitData.iDirMaxCount);
 
     return iRet;
 }
@@ -685,8 +910,12 @@ int ndb_ldap_dir_set (int iDirCount)
 void ndb_ldap_close()
 {
     _ndb_MsgCacheFree();
-    _ndb_FreePointer(&g_pcBase);
-    ldap_unbind(g_pstLDAP);
+    _ndb_FreeInitData();
+    if(NULL != g_pstLDAP)
+    {
+        ldap_unbind(g_pstLDAP);
+        g_pstLDAP = NULL;
+    }
 
     return;
 }
@@ -710,6 +939,22 @@ static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcVal
 {
     LDAPMod *apstAttrs[NDB_ATTR_NUM_MAX + 1] = { 0 };
     int iRet, i = 0;
+    short bIsDnExist;
+
+    /* 如果连接不上则尝试重连 */
+    if(NDB_SUCCESS != _ldap_IsDnExist(g_pstLDAP, pcDn, &bIsDnExist))
+    {
+        if(NDB_SUCCESS != ndb_ldap_reconnect())
+        {
+            return NDB_FAILED;
+        }
+
+        /* 重连成功之后再次判断 */
+        if(NDB_SUCCESS != _ldap_IsDnExist(g_pstLDAP, pcDn, &bIsDnExist))
+        {
+            return NDB_FAILED;
+        }
+    }
 
     if(_ldap_set_string_attr(&apstAttrs[i++], NDB_OBJCLASS_DATA, NDB_OBJCLASS))
     {
@@ -729,13 +974,13 @@ static int _ndb_store_sns(const char *pcDn, const char *pcKey, const char *pcVal
         return NDB_FAILED;
     }
 
-    if(_ldap_IsDnExist(g_pstLDAP, pcDn))
+    if(bIsDnExist)
     {
-        iRet = ldap_modify_ext_s(g_pstLDAP, pcDn, apstAttrs, 0, 0);
+        iRet = ldap_modify_s(g_pstLDAP, pcDn, apstAttrs);
     }
     else
     {
-        iRet = ldap_add_ext_s(g_pstLDAP, pcDn, apstAttrs, 0, 0);
+        iRet = ldap_add_s(g_pstLDAP, pcDn, apstAttrs);
     }
 
     _ldap_attrs_free(apstAttrs);
@@ -891,9 +1136,17 @@ int ndb_ldap_delete (int iDirId, datum stKey)
     }
 
     iRet = ldap_delete_s(g_pstLDAP, pcDn);
-    if(iRet == LDAP_NO_SUCH_OBJECT)
+    if(LDAP_NO_SUCH_OBJECT == iRet)
     {
         iRet = NDB_SUCCESS;
+    }
+    else if(LDAP_SUCCESS != iRet)
+    {
+        /* 尝试重连 */
+        if(NDB_SUCCESS == ndb_ldap_reconnect())
+        {
+            iRet = ldap_delete_s(g_pstLDAP, pcDn);
+        }
     }
 
     free(pcDn);
@@ -963,7 +1216,7 @@ datum ndb_ldap_firstkey (int iDirId)
     }
 
     _ndb_MsgCacheFree();
-    if (LDAP_SUCCESS != ldap_search_s(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &g_pstRes))
+    if (LDAP_SUCCESS != _ldap_TrySearch(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &g_pstRes))
     {
         free(pcDirDn);
         return stRet;
@@ -1017,7 +1270,7 @@ static datum _ndb_GetNextKey(int iDirId, const char *pcDnInput)
     }
 
     _ndb_MsgCacheFree();
-    if (LDAP_SUCCESS != ldap_search_s(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &g_pstRes))
+    if (LDAP_SUCCESS != _ldap_TrySearch(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &g_pstRes))
     {
         free(pcDirDn);
         return stRet;
@@ -1173,7 +1426,7 @@ int ndb_ldap_scan_dir(int iDirId, NDB_LDAP_SCAN_PF pfCallback, void *pSelfData)
         return NDB_FAILED;
     }
 
-    iRet = ldap_search_s(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &pstRes);
+    iRet = _ldap_TrySearch(g_pstLDAP, pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &pstRes);
     if (LDAP_NO_SUCH_OBJECT == iRet)
     {
         free(pcDirDn);

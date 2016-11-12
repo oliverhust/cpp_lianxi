@@ -30,6 +30,14 @@
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
 ***********************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
+#include "iSNStypes.h"
 #include "iSNS.h"
 
 /* Global Configuration Variables */

@@ -36,15 +36,23 @@
  * This file contains IPC message service source code.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNSipc.h"
 #include "iSNSdebug.h"
+#include "iSNSparse.h"
 
 /*
  * IPC endpoints used by the switch software entities
  */
-static IPC_EP  ipc_ep[NUM_IPC_EP_NAMES+1];
+IPC_EP  ipc_ep[NUM_IPC_EP_NAMES+1];
  
 MSG_Q_ID  SNSDevMgtQueue;
 MSG_Q_ID  SNSEpQueue;

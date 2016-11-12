@@ -31,8 +31,13 @@
  
 ***********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
-
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 #include "iSNStypes.h"
 #include "iSNSdb.h"
 #include "iSNSmsg.h"
@@ -164,6 +169,10 @@ ISNSVerifyTag(int srcFlag, uint32_t tag, uint32_t len, void *ptr)
       case ISNS_PORTAL_SYM_NAME:
       case ISNS_DD_ISCSI_MEMBER:
       case ISNS_PORTAL_GROUP_ISCSI_NAME:
+         if ( len > DD_SYM_NAME_SIZE)
+         {
+            rval = FALSE;
+         }
          if ( len == 0)
             __DEBUG (isns_parse_debug &1,%sTag:%i (%s),src,tag,isnsTagText(tag));
          else
@@ -226,6 +235,9 @@ ISNSVerifyTag(int srcFlag, uint32_t tag, uint32_t len, void *ptr)
             else
                __LOG_WARNING ("%sTag:%i (%s) %i",src,tag,isnsTagText(tag),*(uint32_t *)ptr);
          }
+         else if( tag == ISNS_DD_ID && len == 4 && *(uint32_t *)ptr == 0 )
+            rval = FALSE;
+
          if (len == 0)
            __DEBUG (isns_parse_debug &1,%sTag:%i (%s),src,tag,isnsTagText(tag));
          else

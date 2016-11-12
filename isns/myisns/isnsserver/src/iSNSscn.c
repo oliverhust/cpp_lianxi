@@ -35,10 +35,17 @@
  * This file contains source code for managing the SCN - state change notification.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSdb.h"
 #include "iSNSobjects.h"
-#include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNScomm.h"
 #include "iSNSbuffer.h"

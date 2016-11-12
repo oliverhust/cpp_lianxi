@@ -36,17 +36,24 @@
  * iSNS database.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSNdb.h"
 #include "iSNSdb.h"
-//#include <gdbm.h>
-#include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNSbuffer.h"
 #include "iSNStbl.h"
 #include "iSNSList.h"
 #include "iSNSdebug.h"
 #include "iSNSdbMem.h"
+#include "iSNSdbLdap.h"
 
 //#define ndb_store_sns(a,b,c,d) ndb_store(dbfp,b,c,d)
 /*
@@ -186,19 +193,24 @@ ISNSGetNewISCSIIdx( void )
 {
    static uint32_t indx = 0;
    ISNS_DBKey key;
-   int index = 0;
+   SOIP_DB_Entry stEntry;
+   VOID *pIter;
+
+   int index_tmp = 0;
 
    key.tag = ISCSI_IDX_KEY;
    key.len = 0;
 
-   if (indx == 0)
+   if (indx == 0)  /* 仅当第一次调用本函数时才遍历 */
    {
-     while (SNSdbGetNextOfKey (&key) == SUCCESS)
-     {
-      index = key.val.idx.index;
-      if ( index > indx )
-         indx = index;
-    }
+        while (SNSdbGetNextOfData (&key, &pIter, &stEntry) == SUCCESS)
+        {
+            index_tmp = stEntry.data.iscsi_idx.uiIndex;
+            if ( index_tmp > indx )
+            {
+                indx = index_tmp;
+            }
+        }
    }
 
    indx++;
@@ -258,6 +270,16 @@ ISNSdbOpen( void )
         return ERROR;
     }
 
+    ISNS_LDAP_INIT_S stLdap;
+    stLdap.pcLdapUrl = ISNS_LDAP_SERVER_URL;
+    stLdap.pcAdminDn = ISNS_LDAP_ADMIN_DN;
+    stLdap.pcPassword = ISNS_LDAP_ADMIN_PASS;
+    stLdap.pcBase = ISNS_LDAP_ISNS_BASE;
+    if(ERROR_SUCCESS != ISNS_LDAP_Init(&stLdap))
+    {
+        return ERROR;
+    }
+
     /*
     NDB_INITIALIZE_S stNdb;
     stNdb.pcLdapUrl = ISNS_LDAP_SERVER_URL;
@@ -281,6 +303,7 @@ void
 ISNSdbClose(void)
 {
     ISNS_MEM_Fini();
+    ISNS_LDAP_Fini();
     //ndb_close();
 }
 
@@ -303,7 +326,7 @@ SNSdbGetNextOfKey (ISNS_DBKey * key)
 /*********************************************************************
 新数据遍历接口
 ppIter为一个VOID *型指针(其值初始化为0)地址
-                 eg: ISNS_DBKey key = { 0 };  key.tag = xxx;
+                 eg: ISNS_DBKey key = { 0 };  key.tag = DD_ID_KEY;
                      VOID *pIter = NULL;
                      SOIP_DB_Entry entry;
                  while(SNSdbGetNextOfData(&key, &pIter, &entry) == SUCCESS)

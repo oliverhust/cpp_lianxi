@@ -30,7 +30,12 @@
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
 ***********************************************************************/
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
 #include "iSNStypes.h"
 #include "iSNStbl.h"
 #include "iSNSdebug.h"

@@ -1,34 +1,34 @@
 /**************************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
+  
+  Redistribution and use in source and binary forms, with or without 
+  modification, are permitted provided that the following conditions are 
   met:
-
-  - Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
-  - Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
-  - Neither the name of the Nishan Systems, Inc. nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+  
+  - Redistributions of source code must retain the above copyright notice, 
+    this list of conditions and the following disclaimer. 
+  
+  - Redistributions in binary form must reproduce the above copyright 
+    notice, this list of conditions and the following disclaimer in the 
+    documentation and/or other materials provided with the distribution. 
+  
+  - Neither the name of the Nishan Systems, Inc. nor the names of its 
+    contributors may be used to endorse or promote products derived from 
+    this software without specific prior written permission. 
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+ 
 ***********************************************************************/
 
 /*
@@ -36,6 +36,12 @@
  * iSNS database.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSmsg.h"
 #include "iSNSList.h"
@@ -46,7 +52,6 @@
 #include "iSNSquery.h"
 #include "iSNSscn.h"
 #include "iSNSresponse.h"
-#include "iSNStypes.h"
 #include "iSNScomm.h"
 #include "iSNSbuffer.h"
 #include "iSNStbl.h"
@@ -89,9 +94,9 @@ ISNSdbRemoveAttr ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg)
    int            status;
    int            i;
    int            deregEnitityFlag;
-   int            deregFCNodeFlag;
-   int            deregFCPortFlag;
-   int            deregPortalFlag;
+   int            deregFCNodeFlag; 
+   int            deregFCPortFlag; 
+   int            deregPortalFlag; 
    int            deregISCSIFlag;
    ISNS_Attr      *attr_indx[SNS_MAX_ATTRS];
    ISNS_Attr      *key_indx[SNS_MAX_ATTRS];
@@ -264,7 +269,7 @@ SNSdbRemoveAttrDDS_Entry (int id, ISNS_Attr * src_attr,
 }
 
 /*********************************************************************
-_SNSdbRemoveAttrDDS_Member
+_SNSdbRemoveAttrDDS_Member 
 
   Removes a DD from a DDS.
 *********************************************************************/
@@ -420,6 +425,7 @@ ISNSdbRemoveAttrDD ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg )
    ISNS_Key    *key;
    int         flag;
    int         ddKeyIndex;
+   int         keynum;
    ISNS_Attr   *src_attr;
    ISNS_Attr   *attr_indx[SNS_MAX_ATTRS];
    ISNS_Attr   *key_indx[SNS_MAX_ATTRS];
@@ -434,11 +440,19 @@ ISNSdbRemoveAttrDD ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg )
       return (ISNS_AUTH_FAILED_ERR);
    }
 
+   keynum = isns_ldap_checkKeyNum(key_indx);
+   if (1 < keynum)
+      return (ISNS_MSG_FMT_ERR);
+
+
    ddKeyIndex = ISNSFindTag (0, ISNS_DD_ID, key_indx);
    flag = FALSE;
    while (ddKeyIndex != -1)
    {
       key = (ISNS_Key *)(key_indx[ddKeyIndex]);
+
+      if(0 == key->len)
+        return ISNS_MSG_FMT_ERR;
 
       if (attr_indx[0] != NULL)
       {
@@ -456,7 +470,10 @@ ISNSdbRemoveAttrDD ( ISNS_Msg_Descp * p_md, ISNS_Msg * p_rspmsg )
                 SNSdbRemoveDD_Entry (key->val.dd_id, (ISNS_Attr *)src_attr,
                                          p_rspmsg)))
       {
-         return (rval);
+         if (ISNS_NO_SUCH_ENTRY_ERR == rval)
+             return (ISNS_NO_ERR);
+         else
+             return rval;
       }
 
       flag = TRUE;
@@ -517,7 +534,7 @@ ISNSdbRemoveAttrEntityEntry ( char *p_entity_id, ISNS_Attr * src_attr,
    }
    else if (p_entity->eid_type == ENTITY_TYPE_ISCSI)
    {
-      /* Remove ISCSI Nodes */
+      /* Remove ISCSI Nodes */  
       __DEBUG (isns_dereg_debug &1,Remove iscsi_node_list);
       pnode = NULL;
       while ((pnode = GetNextNode(&p_entity->iscsi_node_list, pnode)))
@@ -574,7 +591,7 @@ SNSRemoveIFCPNodeEntry (char *ifcp_node_key, ISNS_Attr * src_attr,
    __DEBUG (isns_dereg_debug & 1, (Deregistering IFCP WWPN));
 
    /*
-      Validate the src attr has permission to delete the node
+      Validate the src attr has permission to delete the node 
       If the src node is an iscsi node, verify that it is the same
       as the iscsi node.
       If the src is an entity verify that iscsi node belongs to the entity
@@ -628,7 +645,7 @@ SNSRemoveIFCPNodeEntry (char *ifcp_node_key, ISNS_Attr * src_attr,
          {
             RemoveNode(&p_fc_node->port_list, pnode);
          }
-
+         
          rval = write_FCNodeObject(db_node_name.v, entry3);
 
          if (IsEmptyList(&p_fc_node->port_list))
@@ -926,7 +943,7 @@ int
 SNSRemoveISCSINodeEntry (char *iscsi_node_key, ISNS_Attr * src_attr,
                          ISNS_Msg * p_rspmsg)
 {
-   int               rval;
+   int               rval;   
    int               scn_bitmap;
    SOIP_Iscsi        *p_node;
    SOIP_Entity       *p_entity;
@@ -945,7 +962,7 @@ SNSRemoveISCSINodeEntry (char *iscsi_node_key, ISNS_Attr * src_attr,
     return rval;
 
    /*
-      Validate the src attr has permission to delete the node
+      Validate the src attr has permission to delete the node 
       If the src node is an iscsi node, verify that it is the same
       as the iscsi node.
       If the src is an entity verify that iscsi node belongs to the entity
@@ -983,8 +1000,13 @@ SNSRemoveISCSINodeEntry (char *iscsi_node_key, ISNS_Attr * src_attr,
    /* update entity in database by doing a write */
    rval = write_EntityObject(p_node->entity_id.id, entry4);
 
-   /* Delete the iSCSI Node */
-   delete_ISCSIidxObject(p_node->iscsi_index);
+   /* 如果没有DD引用则把NAME--INDEX关系删了 */
+   SOIP_ISCSI_Index stIscsiIndex;
+   if(SUCCESS == read_ISCSIidxObjectByName(p_node->id.v, &stIscsiIndex) &&
+      0 == stIscsiIndex.iDdRefCount)
+   {
+        delete_ISCSIidxObject(p_node->iscsi_index);
+   }
 
    RemoveCert (&p_node->ptr_cert);
    DeleteList(&p_node->dd_id_list);
@@ -1078,7 +1100,7 @@ SNSRemovePortalEntry (SOIP_Portal_Key *portal_key, ISNS_Attr * src_attr,
     return rval;
    }
    /*
-      Validate the src attr has permission to delete the node
+      Validate the src attr has permission to delete the node 
       If the src node is an iscsi node, verify that it is the same
       as the iscsi node.
       If the src is an entity verify that iscsi node belongs to the entity
@@ -1097,7 +1119,7 @@ SNSRemovePortalEntry (SOIP_Portal_Key *portal_key, ISNS_Attr * src_attr,
       return rval;
 
    /* Remove Portals */
-   __ISNS_COPY (&portalListEntry.portal_ip_port, sizeof(portalListEntry.portal_ip_port), portal_key,
+   __ISNS_COPY (&portalListEntry.portal_ip_port, sizeof(portalListEntry.portal_ip_port), portal_key, 
              sizeof(portalListEntry.portal_ip_port));
    portalListEntry.portal_idx = p_portal->portal_index;
 
@@ -1167,6 +1189,7 @@ SNSdbRemoveDD_Entry ( int id, ISNS_Attr * src_attr, ISNS_Msg * p_rspmsg )
    SOIP_Dds       *p_dds;
    SOIP_DD_Key     dds_key;
    ISNS_LIST_NODE *pnode2;
+   SOIP_ISCSI_Index stIscsiIndex;
 
    dd_key.id = id;
    rval = read_DDObject(dd_key.id, &p_dd, &entry);
@@ -1180,7 +1203,7 @@ SNSdbRemoveDD_Entry ( int id, ISNS_Attr * src_attr, ISNS_Msg * p_rspmsg )
    {
       p_member=(SOIP_Dd_Member *) GetNodeData(pnode);
 
-      if ( p_member->type != 0 &&
+      if ( p_member->type != 0 && 
           p_member->status != ISNS_DD_MEMBER_DISABLE )
       {
          char member_name[256];
@@ -1210,6 +1233,23 @@ SNSdbRemoveDD_Entry ( int id, ISNS_Attr * src_attr, ISNS_Msg * p_rspmsg )
                __LOG_ERROR ("Error, dd member type=%u incorrect.", p_member->type);
    /*          return (ISNS_MSG_FMT_ERR); */
                break;
+         }
+      }
+
+      /* ISCSI NAME DD引用计数-- */
+      if(SUCCESS == read_ISCSIidxObjectByName(p_member->node_id, &stIscsiIndex))
+      {
+         stIscsiIndex.iDdRefCount--;
+         SOIP_Iscsi *pstIscsi;
+         SOIP_DB_Entry stEntry;
+         if(0 == stIscsiIndex.iDdRefCount &&
+            ISNS_NO_SUCH_ENTRY_ERR == read_ISCSIObject(p_member->node_id, &pstIscsi, &stEntry))
+         {
+            delete_ISCSIidxObject(stIscsiIndex.uiIndex);
+         }
+         else
+         {
+            write_ISCSIidxObject(&stIscsiIndex);
          }
       }
 
@@ -1279,14 +1319,38 @@ SNSdbRemoveDD_Member (int id, ISNS_Attr **attr_indx, ISNS_Attr * src_attr,
       p_attr = (ISNS_Attr *)(attr_indx[ii]);
       switch (p_attr->tag)
       {
+      case ISNS_ISCSI_IDX:
+      case ISNS_DD_ISCSI_MEMBER_IDX:
+      {
+         SOIP_DB_Entry entry1;
+         SOIP_DB_Entry *p_entry = &entry1;
+         void *ptr;
+
+         if(p_attr->len != 0)
+         {
+           //如果内存中没找到指定index对应的node，则返回错误
+           rval = read_ISCSIidxObject(*(uint32_t *)&p_attr->val, &ptr, p_entry);
+           if (rval != SUCCESS)
+           {
+             ISNSAppendAttr (p_rspmsg, ISNS_DD_ISCSI_MEMBER_IDX, ISNS_DD_ISCSI_MEMBER_IDX_SIZE, NULL, *(uint32_t *)&p_attr->val);
+             return (ISNS_NO_SUCH_ENTRY_ERR);
+           }
+         }
+         //接下来的处理过程与移除iSCSI Name一样
+         memset(p_attr, 0, sizeof(ISNS_Attr));
+         p_attr->tag = ISNS_DD_ISCSI_MEMBER;
+         p_attr->len = sizeof((char *)&p_entry->data.iscsi_idx.v);
+         strlcpy(p_attr->val.node_name.v, (char *)&p_entry->data.iscsi_idx.v, p_attr->len);
+      }
+      case ISNS_ISCSI_NODE_ID:
       case ISNS_DD_ISCSI_MEMBER:
          Remove_DD_from_ISCSI_Node (p_dd, (char *)&p_attr->val);
          Remove_DD_Member (p_dd, (char *)&p_attr->val, ISNS_DD_ISCSI_MEMBER);
 
          ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
-         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_ISCSI_MEMBER,
+         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_ISCSI_MEMBER, 
                         PAD4(strlen((char *)&p_attr->val)), (char *)&p_attr->val, 0);
-         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE, NULL,
+         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_ISCSI_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE, NULL, 
                         ISNS_SCN_MEMBER_REMOVED);
          removeMemberFlag = TRUE;
          send_iscsi_scn_to_members ( NULL,(char *)&p_attr->val, p_scn_all_msg_buffer, ISNS_SCN_OBJ_REMOVED );
@@ -1299,9 +1363,9 @@ SNSdbRemoveDD_Member (int id, ISNS_Attr **attr_indx, ISNS_Attr * src_attr,
          }
          Remove_DD_Member (p_dd, (char *)&p_attr->val, ISNS_DD_IFCP_MEMBER);
          ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_ID, ISNS_DD_ID_SIZE, NULL, p_dd->id);
-         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_IFCP_MEMBER,
+         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_DD_IFCP_MEMBER, 
                         PAD4(strlen((char *)&p_attr->val)), (char *)&p_attr->val, 0);
-         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_IFCP_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE, NULL,
+         ISNSAppendKey( p_scn_all_msg_buffer, ISNS_IFCP_SCN_BITMAP, ISNS_SCN_BITMAP_SIZE, NULL, 
                         ISNS_SCN_MEMBER_REMOVED);
          send_iscsi_scn_to_members ( NULL, (char *)&p_attr->val, p_scn_all_msg_buffer, ISNS_SCN_OBJ_REMOVED );
          removeMemberFlag = TRUE;
@@ -1319,7 +1383,7 @@ SNSdbRemoveDD_Member (int id, ISNS_Attr **attr_indx, ISNS_Attr * src_attr,
 }
 
 /*********************************************************************
-_Remove_DD_Member
+_Remove_DD_Member 
 
 Removes a member from a DD.
 
@@ -1330,6 +1394,7 @@ Remove_DD_Member (SOIP_Dd *p_dd, char *ptr, uint32_t type)
 {
    ISNS_LIST_NODE *pnode;
    SOIP_Dd_Member *p_member;
+   SOIP_ISCSI_Index stIscsiIndex;
 
    pnode=NULL;
    while ((pnode=GetNextNode(&p_dd->member_list, pnode)))
@@ -1350,6 +1415,22 @@ Remove_DD_Member (SOIP_Dd *p_dd, char *ptr, uint32_t type)
          continue;
 
       RemoveNode(&p_dd->member_list, pnode);
+      /* ISCSI NAME DD引用计数-- */
+      if(SUCCESS == read_ISCSIidxObjectByName(ptr, &stIscsiIndex))
+      {
+         stIscsiIndex.iDdRefCount--;
+         SOIP_Iscsi *pstIscsi;
+         SOIP_DB_Entry stEntry;
+         if(0 == stIscsiIndex.iDdRefCount &&
+            ISNS_NO_SUCH_ENTRY_ERR == read_ISCSIObject(ptr, &pstIscsi, &stEntry))
+         {
+            delete_ISCSIidxObject(stIscsiIndex.uiIndex);
+         }
+         else
+         {
+            write_ISCSIidxObject(&stIscsiIndex);
+         }
+      }
       break;
    }
 
@@ -1410,7 +1491,7 @@ Remove_DD_from_ISCSI_Node (SOIP_Dd *p_dd, char *p_node_name)
 }
 
 /*********************************************************************
-_Remove_DD_from_IFCP_Node
+_Remove_DD_from_IFCP_Node 
 
 Removes the DD from the iFCP's DD list.
 *********************************************************************/
@@ -1436,7 +1517,7 @@ Remove_DD_from_IFCP_Node (int id, char *p_node_name)
 }
 
 /*********************************************************************
-_Disable_DD_Member
+_Disable_DD_Member 
 Disables a DD member.  This gets called when a node is deleted.
 *********************************************************************/
 int
@@ -1591,7 +1672,7 @@ ISNS_DeRegisterSCN ( ISNS_Msg_Descp * p_md, ISNS_Msg * rspmsg )
 }
 
 /*********************************************************************
-_RemoveCert
+_RemoveCert 
 
 Deallocates the cert space.
 *********************************************************************/

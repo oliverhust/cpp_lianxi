@@ -70,6 +70,7 @@ OBJECTS += iSNShash.o
 OBJECTS += iSNSdbMem.o
 OBJECTS += iSNSMemData.o
 OBJECTS += iSNSdbLdap.o
+OBJECTS += iSNSLdapLib.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -81,12 +82,14 @@ LIBS = -lpthread -lldap
 
 PROGRAMS = isnsd
 
-all : $(PROGRAMS) 
+all : $(PROGRAMS)	
 
 isnsd: $(OBJECTS)
 	$(CC) $^ -o $@ $(LIBS)
-
+	rm $(OBJECTS)
+	
 iSNSMain.o : $(SRCDIR)iSNSMain.c 
+	dos2unix $(SRCDIR)*.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 iSNScomm.o : $(SRCDIR)iSNScomm.c 
@@ -171,6 +174,9 @@ iSNSdbMem.o : $(SRCDIR)iSNSdbMem.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 iSNSdbLdap.o : $(SRCDIR)iSNSdbLdap.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+iSNSLdapLib.o : $(SRCDIR)iSNSLdapLib.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 ut : 

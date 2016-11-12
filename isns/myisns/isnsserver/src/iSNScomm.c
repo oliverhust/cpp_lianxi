@@ -43,7 +43,8 @@
 int sns_comm_debug = 0;
 int sns_comm_msg_filter = 0;
 
-char  snsp_ip[16]=""; 
+char  snsp_subnet[16];
+char  snsp_ip[16]="0.0.0.0";
 char  snsp_bip[16]=SNS_BROADCAST_ADDR;
 int   snsp_port;
 char  sns_if_name[10] = {SNS_IF_NAME};

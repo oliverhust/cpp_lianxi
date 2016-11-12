@@ -11,3 +11,12 @@
 /isns/myisns/myisns.IMD
 /isns/myisns/myisns.PFI
 /cpplianxi
+/isns/myisns/isnsserver/*.PO
+/isns/myisns/isnsserver/*.PR
+/isns/myisns/isnsserver/*.PRI
+/isns/myisns/isnsserver/*.PS
+/isns/myisns/isnsserver/*.IAB
+/isns/myisns/isnsserver/*.IAD
+/isns/myisns/isnsserver/*.IMB
+/isns/myisns/isnsserver/*.IMD
+/isns/myisns/isnsserver/*.PFI

@@ -31,6 +31,14 @@
  
 ***********************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/list.h>
 
 #include "iSNStypes.h"
 #include "iSNSfsm.h"
@@ -245,7 +253,6 @@ static ISNS_Entity sns_init_role;
  */
 int      sns_fsm_timeout = 0;
 
-#ifdef SNS_LINUX
 
 pthread_mutex_t sns_fsm_timer;
 pthread_mutex_t sns_resync_timer;
@@ -258,17 +265,8 @@ int fsmtimeout_pid = 0;
 int esitimeout_pid = 0;
 int sns_resync_pid = 0;
 
-#else
 
-HANDLE sns_fsm_timer;
-HANDLE sns_resync_timer;
-HANDLE sns_esi_timer;
-HANDLE fsmtimeout_pid=0;
-HANDLE esitimeout_pid=0;
-HANDLE sns_resync_pid=0;
-DWORD fsmtimeout_id, sns_resync_timer_id;
 
-#endif
 
 /*
  * The Process ID of the Resync task.
@@ -306,7 +304,6 @@ SNSStartFSM(void)
    /*
     * Activate timeout handlers.
     */
-#ifdef SNS_LINUX
     {
         pthread_t junk;
         
@@ -320,18 +317,7 @@ SNSStartFSM(void)
         perror ("Error creating thread for iSNS Resync");
      }
 
-#else
-   sns_esi_timer=CreateWaitableTimer(NULL, FALSE, NULL);
-   sns_fsm_timer=CreateWaitableTimer(NULL, FALSE, NULL);
-   sns_resync_timer=CreateWaitableTimer(NULL, FALSE, NULL);
-   {
-     DWORD junk;
-     fsmtimeout_pid = CreateThread(0, 0,(void *) SNSFSMTimeoutThread, &junk, 0, &fsmtimeout_id);
-     esitimeout_pid = CreateThread(0, 0,(void *) SNSESITimeoutThread, &junk, 0, &fsmtimeout_id);
-     sns_resync_pid = CreateThread(0, 0,(void *) SNSResyncTimeoutThread, &junk, 0, &fsmtimeout_id);
-   }
 
-#endif
 
    SNSFSMStartTimer(sns_heartbeat_interval * sysClkRateGet());
    SNSESIStartTimer(sns_esi_interval * sysClkRateGet());
@@ -374,16 +360,7 @@ SNSProcFSM(SNS_FSM_Event event, void *arg)
 void
 SNSESIStartTimer (int timeout)
 {
-#ifndef SNS_LINUX
-    STATUS  status;
-
-    wdCancel(sns_esi_timer);
-    status = wdStart(sns_esi_timer, timeout,
-                     NULL, NULL);
-
-    if (status == ERROR)
-       __LOG_ERROR ("Error in starting HEARTBEAT TIMER\n");
-#endif
+return;
 }
 
 /*
@@ -397,16 +374,7 @@ SNSESIStartTimer (int timeout)
 static void
 SNSFSMStartTimer (int timeout)
 {
-#ifndef SNS_LINUX
-    STATUS  status;
-
-    wdCancel(sns_fsm_timer);
-    status = wdStart(sns_fsm_timer, timeout,
-                     SNSFSMTimeoutHdlr, NULL);
-
-    if (status == ERROR)
-       __LOG_ERROR (" Error in starting HEARTBEAT TIMER");
-#endif
+return;
 }
 
 void

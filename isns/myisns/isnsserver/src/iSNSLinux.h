@@ -41,7 +41,7 @@
 
 
 #include <sys/socket.h>
-#include <netinet/in.h>
+#include <sys/in.h>
 #include <sys/types.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -101,7 +101,11 @@ SNSTrap(void);
 
 int LinuxTaskSpawn(char* taskName, void* funcPtr);
 
-#define taskSpawn(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) LinuxTaskSpawn(a,e) 
+VOID ISCSI_ISNS_ThreadStatusSet(ISCSI_THREAD_STATUS_E enThreadStatus);
+
+ISCSI_THREAD_STATUS_E ISCSI_ISNS_ThreadStatusGet(VOID);
+
+#define taskSpawn(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) LinuxTaskSpawn(a,e)
 
 #endif
 

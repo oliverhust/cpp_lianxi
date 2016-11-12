@@ -36,9 +36,23 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <sys/netdb.h>
 #include <sys/basetype.h>
 #include <sys/error.h>
+#include <sys/l3vpn.h>
+#include <sys/dns.h>
 #include <sys/list.h>
+#include <sys/assert.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_packet.h"
+#include "../../include/iscsi_main.h"
 
 #include "iSNStypes.h"
 #include "iSNSfsm.h"

@@ -1,43 +1,66 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 #include <signal.h>
-#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/netdb.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/l3vpn.h>
+#include <sys/dns.h>
+#include <sys/list.h>
+#include <sys/assert.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_main.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
+
 #include "iSNS.h"
 #include "iSNStypes.h"
 #include "iSNScomm.h"
 #include "iSNSmsg.h"
 #include "iSNSparse.h"
 #include "iSNSdebug.h"
+#include "iSNSrcv.h"
+#include "iSNSEpoll.h"
+#include "iSNSevent.h"
 #include "errno.h"
 
 int sns_comm_debug = 0;
@@ -48,6 +71,13 @@ char  snsp_ip[16]="0.0.0.0";
 char  snsp_bip[16]=SNS_BROADCAST_ADDR;
 int   snsp_port;
 char  sns_if_name[10] = {SNS_IF_NAME};
+
+extern pthread_mutex_t sns_status_mutex;
+extern pthread_cond_t sns_status_cond;
+
+extern int sns_status;
+
+extern ULONG ISCSI_ISNS_TrcvEpollCallBack(IN UINT uiEvent, IN VOID *pHandle);
 
 int ifAddrGet(char *ifname, char *ip)
 {
@@ -90,15 +120,15 @@ SOCKET mc_sd;
 SOCKET isns_sd;
 
 /* Socket address of the ISNS */
-struct sockaddr_in  isns_sock; 
+struct sockaddr_in  isns_sock;
 
 /*
  * Socket address of the SOIP entity
  */
-struct sockaddr_in  local_sock; 
+struct sockaddr_in  local_sock;
 
 /*
- * Socket address of the server 
+ * Socket address of the server
  */
 struct sockaddr_in  server_sock;
 
@@ -125,20 +155,16 @@ void pipe_handler(int n)
  *                port and joins the IP multicast group based
  *                on the type of SOIP entity.
  *
- * Return value:  SUCCESS (0) 
+ * Return value:  SUCCESS (0)
  *                ERROR (-1)
- *      
+ *
  */
 int
 SNSCommInit (ISNS_Entity entity)
 {
    char            ip_addr[INET_ADDR_LEN+1];
    int             bcast_on;
-#ifdef SNS_LINUX
    int             not_needed = 1;
-#else
-   char            not_needed = 1;
-#endif
 
     /*
      * Check the entity type, Is it a client or server ?
@@ -146,7 +172,7 @@ SNSCommInit (ISNS_Entity entity)
      if ((entity != ISNS_CLIENT) && (entity != ISNS_SECONDARY_SERVER))
         return (ERROR);
 
-    /* 
+    /*
      * Set initialization parameters
      *
      */
@@ -164,33 +190,33 @@ SNSCommInit (ISNS_Entity entity)
      */
      if ((sd = socket (AF_INET, SOCK_DGRAM, 0)) < 0)
      {
+        __LOG_ERROR("\nSNSCommInit:socket");
         perror("\nSNSCommInit:socket");
         return (-1);
      }
 
-#ifdef SNS_LINUX
      /* Allow reuse of addresses */
      if (setsockopt (sd, SOL_SOCKET, SO_REUSEADDR, &not_needed, sizeof(not_needed)) != 0)
      {
+      __LOG_ERROR ("Reuse address");
       perror ("Reuse address");
       return (-1);
      }
-#endif
 
      if ((mc_sd = socket (AF_INET, SOCK_DGRAM, 0)) < 0)
      {
+        __LOG_ERROR("\nSNSCommInit:socket");
         perror("\nSNSCommInit:socket");
         return (-1);
      }
 
-#ifdef SNS_LINUX
      /* Allow reuse of addresses */
     if (setsockopt (mc_sd, SOL_SOCKET, SO_REUSEADDR, &not_needed, sizeof(not_needed)) != 0)
     {
-       perror ("Reuse address");
+       __LOG_ERROR ("\nReuse address");
+       perror ("\nReuse address");
        return (-1);
     }
-#endif
 
      bzero ((char *) &local_sock, sizeof (struct sockaddr_in));
      bzero ((char *) &server_sock, sizeof (struct sockaddr_in));
@@ -204,16 +230,15 @@ SNSCommInit (ISNS_Entity entity)
      server_sock.sin_port  = htons ((short)sns_comm_main_port);
      mc_sock.sin_port      = htons ((short)sns_comm_mcast_port);
 
-     local_sock.sin_addr.s_addr = SNSGetIfAddr(); 
+     local_sock.sin_addr.s_addr = SNSGetIfAddr();
 
-#ifdef SNS_LINUX
      /* Allow reuse of addresses */
      if (setsockopt (sd, SOL_SOCKET, SO_REUSEADDR, &not_needed, sizeof(not_needed)) < 0)
      {
+      __LOG_ERROR ("Reuse address");
       perror ("Reuse address");
       return (-1);
      }
-#endif
 
     /*
      * Bind it to the well-known SoIP UDP port
@@ -223,45 +248,47 @@ SNSCommInit (ISNS_Entity entity)
                 sizeof (struct sockaddr)))
      {
           close(sd);
+          __LOG_ERROR ("\nSNSCommInit: bind");
           perror ("\nSNSCommInit: bind");
           return (-1);
      }
 
-     mc_sock.sin_addr.s_addr = inet_addr(ip_addr); 
+     mc_sock.sin_addr.s_addr = inet_addr(ip_addr);
 
      /* SNSGetIfBroadcastAddr();  */
      /* htonl (INADDR_BROADCAST); */
 
       /* Allow reuse of addresses */
-#ifdef SNS_LINUX
       if (setsockopt (mc_sd, SOL_SOCKET, SO_REUSEADDR, &not_needed, sizeof(not_needed)) < 0)
       {
+          __LOG_ERROR ("Reuse address");
           perror ("Reuse address");
           return (-1);
       }
-#endif
 
      if (bind (mc_sd, (struct sockaddr *)&mc_sock,
                 sizeof (struct sockaddr)) != 0 )
      {
           close (sd);
           close (mc_sd);
+          __LOG_ERROR ("\nSNSCommInit: bind");
           perror ("\nSNSCommInit: bind");
           return (-1);
      }
 
      ifBroadcastGet(sns_if_name, ip_addr);
-     mc_sock.sin_addr.s_addr = inet_addr(ip_addr); 
+     mc_sock.sin_addr.s_addr = inet_addr(ip_addr);
      /*
       * Enable broadcast traffic on the iSNS socket.
       * This is a temporary workaround since Tornado 1.0 does not
-      * support IP multicasting. 
+      * support IP multicasting.
       */
       bcast_on = 1;
       if (setsockopt (sd, SOL_SOCKET, SO_BROADCAST,
                      (char *) &bcast_on, sizeof (int)) == -1 )
       {
           close (sd);
+          __LOG_ERROR ("\nSNSCommInit: setsockopt SO_BROADCAST:");
           perror ("\nSNSCommInit: setsockopt SO_BROADCAST:");
           return (-1);
       }
@@ -282,76 +309,23 @@ SNSCommInit (ISNS_Entity entity)
  *
  * Description:   Receive a message from a remote SOIP service entity.
  *
- * Return value:  
+ * Return value:
  *
  */
 int
-SNSGetMsg(ISNS_Msg_Descp *md)
+SNSReceiveMain(void)
 {
+  /*
+   * Wait for a message to arrive on the socket.
+   * Forward the received message to the service
+   * agent task for processing.
+   */
 
+   ISCSI_UTL_EpollAddFd(ISCSI_ISNS_EpollHandleGet(), sd, EPOLLIN, SNSReceiveCallBack);
 
-   int    status;
-   int    rsd;
-   fd_set sock_set;
+   ISCSI_UTL_EpollAddFd(ISCSI_ISNS_EpollHandleGet(), mc_sd, EPOLLIN, SNSReceiveCallBack);
 
-   for (;;)
-   {
-      /*
-       * Wait for a message to arrive on the socket.
-       * Forward the received message to the service
-       * agent task for processing.
-       */
-       bzero ((char *) &md->cb.sock.addr, sizeof(struct sockaddr));
-       bzero ((char *) &md->msg, sizeof (ISNS_Msg));
-
-       md->cb.sock.len = sizeof (struct sockaddr_in);
-
-       /* Set this as UDP */
-       md->cb.sock.socketType = ISNS_SOCKET_TYPE_UDP;
-
-       FD_ZERO(&sock_set);
-
-       FD_SET (sd, &sock_set);
-       FD_SET (mc_sd, &sock_set);
-       if (select (mc_sd+1, &sock_set, NULL, NULL, NULL) < 0)
-             perror ("select");
-       
-       if (FD_ISSET (mc_sd, &sock_set))
-          rsd = mc_sd;
-       else if (FD_ISSET (sd, &sock_set))
-          rsd = sd;
-       else
-          return (ERROR);
-
-       if (recvfrom (rsd, (char *) &md->msg, sizeof (ISNS_Msg),
-                                 0, (struct sockaddr *) &md->cb.sock.addr, 
-                                 &md->cb.sock.len) == -1 )
-       {
-           __LOG_ERROR ("Error recform ");
-           status = ERROR;
-       }
-       else
-       {
-
-          if (sns3)
-             __LOG_INFO ("Receive from %x", (int)md->cb.sock.addr.sin_addr.s_addr);
-          {
-             /* iSNS msg */
-             md->msg.hdr.type    = ntohs (md->msg.hdr.type);
-             md->msg.hdr.xid     = ntohs (md->msg.hdr.xid);
-             md->msg.hdr.msg_len = ntohs (md->msg.hdr.msg_len); 
-             md->msg.hdr.flags   = ntohs (md->msg.hdr.flags);
-
-             md->msg.hdr.version  = ntohs (md->msg.hdr.version);  
-             md->msg.hdr.sequence = ntohs (md->msg.hdr.sequence);  
-          }
-
-          status = SUCCESS;
-          break;
-
-       }
-   }
-       return (status);
+   return (SUCCESS);
 }
 
 int
@@ -401,20 +375,20 @@ SNSSendMsg_TCP(ISNS_Msg_Descp *p_md)
 
    SNSConvertPayloadHTON(&p_md->msg);
 
-   len = sizeof (SNS_Msg_Hdr) + p_md->msg.hdr.msg_len; 
+   len = sizeof (SNS_Msg_Hdr) + p_md->msg.hdr.msg_len;
    inet_ntoa_b (p_md->cb.sock.addr.sin_addr, dot_not_addr);
    dest_version = p_md->msg.hdr.version;
 
-   p_md->msg.hdr.type     = htons (p_md->msg.hdr.type);  
-   p_md->msg.hdr.xid      = htons (p_md->msg.hdr.xid);  
-   p_md->msg.hdr.version  = htons (SNS_VERSION);  
-   p_md->msg.hdr.sequence = htons (p_md->msg.hdr.sequence);  
-   p_md->msg.hdr.msg_len  = htons (p_md->msg.hdr.msg_len);  
-   
-   p_md->msg.hdr.flags |= ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;  
+   p_md->msg.hdr.type     = htons (p_md->msg.hdr.type);
+   p_md->msg.hdr.xid      = htons (p_md->msg.hdr.xid);
+   p_md->msg.hdr.version  = htons (SNS_VERSION);
+   p_md->msg.hdr.sequence = htons (p_md->msg.hdr.sequence);
+   p_md->msg.hdr.msg_len  = htons (p_md->msg.hdr.msg_len);
+
+   p_md->msg.hdr.flags |= ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
    p_md->msg.hdr.flags = htons(p_md->msg.hdr.flags);
 
-   s_len = send(p_md->cb.sock.sockfd, (char *)&p_md->msg, len, 0); 
+   s_len = send(p_md->cb.sock.sockfd, (char *)&p_md->msg, len, 0);
    if (s_len<=0)
    {
       __LOG_INFO ("send() error=%d %s",s_len, strerror(errno) );
@@ -430,7 +404,7 @@ SNSSendMsg_TCP(ISNS_Msg_Descp *p_md)
  *
  * Synopsis:      SNSSendMsg(p_md);
  *
- * Arguments:     p_md - pointer to message descriptor block. The iSNS 
+ * Arguments:     p_md - pointer to message descriptor block. The iSNS
  *                       message associaed with this descriptor is
  *                       transmitted to the address contained in the
  *                       descriptor block.
@@ -449,18 +423,18 @@ SNSSendMsg_UDP(ISNS_Msg_Descp *p_md)
      int  dest_version;
      int  display_debug;
      char dot_not_addr[INET_ADDR_LEN];
-     
+
      SNSConvertPayloadHTON(&p_md->msg);
 
-     len = sizeof (SNS_Msg_Hdr) + p_md->msg.hdr.msg_len; 
+     len = sizeof (SNS_Msg_Hdr) + p_md->msg.hdr.msg_len;
      inet_ntoa_b (p_md->cb.sock.addr.sin_addr, dot_not_addr);
      dest_version = p_md->msg.hdr.version;
 
-     p_md->msg.hdr.type     = htons (p_md->msg.hdr.type);  
-      p_md->msg.hdr.xid      = htons (p_md->msg.hdr.xid);  
-      p_md->msg.hdr.version  = htons (SNS_VERSION);  
-      p_md->msg.hdr.sequence = htons (p_md->msg.hdr.sequence);  
-      p_md->msg.hdr.msg_len  = htons (p_md->msg.hdr.msg_len);  
+     p_md->msg.hdr.type     = htons (p_md->msg.hdr.type);
+      p_md->msg.hdr.xid      = htons (p_md->msg.hdr.xid);
+      p_md->msg.hdr.version  = htons (SNS_VERSION);
+      p_md->msg.hdr.sequence = htons (p_md->msg.hdr.sequence);
+      p_md->msg.hdr.msg_len  = htons (p_md->msg.hdr.msg_len);
 
      display_debug = 0;
      if (sns_comm_debug == 1)
@@ -482,17 +456,17 @@ SNSSendMsg_UDP(ISNS_Msg_Descp *p_md)
            p_md->msg.hdr.flags = htons(p_md->msg.hdr.flags);
            payload_len = msg_len - sizeof(SNS_Msg_Hdr);
            p_md->msg.hdr.msg_len = htons ((short)payload_len);
-           status = sendto(sd, (void *)&p_md->msg, msg_len, 0, 
-                           (struct sockaddr *)&p_md->cb.sock.addr, 
+           status = sendto(sd, (void *)&p_md->msg, msg_len, 0,
+                           (struct sockaddr *)&p_md->cb.sock.addr,
                            p_md->cb.sock.len);
            __DEBUG (display_debug,
                     (iSNS Sending msg id %d, len %d, xid %d to %s),
-                    p_md->msg.hdr.type, p_md->msg.hdr.msg_len, 
+                    p_md->msg.hdr.type, p_md->msg.hdr.msg_len,
                     p_md->msg.hdr.xid, dot_not_addr);
            count++;
            p_md->msg.hdr.sequence = htons ((short)count);
            len -= payload_len;
-           memcpy(&p_md->msg.payload, (char *)&p_md->msg.payload + 
+           memcpy(&p_md->msg.payload, (char *)&p_md->msg.payload +
                   payload_len, len - sizeof(SNS_Msg_Hdr));
         }
      }
@@ -504,7 +478,7 @@ SNSSendMsg_UDP(ISNS_Msg_Descp *p_md)
         p_md->msg.hdr.flags |= (ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU);
         p_md->msg.hdr.flags = htons(p_md->msg.hdr.flags);
         status = sendto(sd, (void *)&p_md->msg, len, 0,
-                        (struct sockaddr *)&p_md->cb.sock.addr, 
+                        (struct sockaddr *)&p_md->cb.sock.addr,
                         p_md->cb.sock.len);
         __DEBUG (display_debug,
                  (iSNS Sending msg id %#x, len %d, xid %d to %s),
@@ -546,10 +520,10 @@ SNSGetServerAddr(void)
  * Return value:  SUCCESS (0) OR ERROR (-1)
  *
  */
-void 
+void
 ISNSCommUpdate (struct in_addr  *server_addr)
 {
-   if (server_sock.sin_addr.s_addr != server_addr->s_addr) 
+   if (server_sock.sin_addr.s_addr != server_addr->s_addr)
       server_sock.sin_addr.s_addr = server_addr->s_addr;
 }
 
@@ -619,35 +593,35 @@ ISNSSendMsg2Server (ISNS_Msg *p_msg)
        return ERROR;
 
     inet_ntoa_b (server_sock.sin_addr, dot_not_addr);
-    len = sizeof (SNS_Msg_Hdr) + p_msg->hdr.msg_len; 
-   
+    len = sizeof (SNS_Msg_Hdr) + p_msg->hdr.msg_len;
+
     SNSConvertPayloadHTON(p_msg);
 
     if (p_msg->hdr.type<999)
     {
-       p_msg->hdr.type     = htons (p_msg->hdr.type);  
-       p_msg->hdr.xid      = htons (p_msg->hdr.xid);  
-       p_msg->hdr.msg_len  = htons (p_msg->hdr.msg_len);  
-       p_msg->hdr.flags    = htons (p_msg->hdr.flags);  
-       p_msg->hdr.version  = htons (SNS_VERSION);  
-       p_msg->hdr.sequence = htons (p_msg->hdr.sequence);  
+       p_msg->hdr.type     = htons (p_msg->hdr.type);
+       p_msg->hdr.xid      = htons (p_msg->hdr.xid);
+       p_msg->hdr.msg_len  = htons (p_msg->hdr.msg_len);
+       p_msg->hdr.flags    = htons (p_msg->hdr.flags);
+       p_msg->hdr.version  = htons (SNS_VERSION);
+       p_msg->hdr.sequence = htons (p_msg->hdr.sequence);
     }
     else
     {
        __LOG_WARNING("Warning: type is already in network byte order.");
     }
 
-    len = sizeof (SNS_Msg_Hdr) + ntohs(p_msg->hdr.msg_len); 
+    len = sizeof (SNS_Msg_Hdr) + ntohs(p_msg->hdr.msg_len);
     display_debug = 0;
     if (sns_comm_debug == 1)
        display_debug = (p_msg->hdr.type != sns_comm_msg_filter);
     else if (sns_comm_debug == 2)
        display_debug = (p_msg->hdr.type == sns_comm_msg_filter);
 
-    if ( sendto(sd, (void *)p_msg, len, 0, (struct sockaddr *)&server_sock, 
+    if ( sendto(sd, (void *)p_msg, len, 0, (struct sockaddr *)&server_sock,
                 sizeof(struct sockaddr_in)) == ERROR)
     {
-        __DEBUG (sns_comm_debug, (Error in Sending message to %s), 
+        __DEBUG (sns_comm_debug, (Error in Sending message to %s),
                  dot_not_addr);
         status = ERROR;
     }
@@ -668,7 +642,7 @@ ISNSSendMsg2Server (ISNS_Msg *p_msg)
  *
  * Synopsis:      SNSSendMsg2MCgrp (p_msg);
  *
- * Arguments:     p_msg  - pointer to message that will be multicast 
+ * Arguments:     p_msg  - pointer to message that will be multicast
  *                         to the SOIP service server/client group
  *
  * Description:   Send an iSNS message to the SOIP service server/client
@@ -690,20 +664,20 @@ SNSSendMsg2MCgrp (ISNS_Msg *p_msg)
     len          = sizeof (SNS_Msg_Hdr) + p_msg->hdr.msg_len;
     SNSConvertPayloadHTON(p_msg);
 
-    p_msg->hdr.type     = htons (p_msg->hdr.type);  
-    p_msg->hdr.xid      = htons (p_msg->hdr.xid);  
-    p_msg->hdr.msg_len  = htons (p_msg->hdr.msg_len);  
-    p_msg->hdr.flags    = htons ((short)(p_msg->hdr.flags | ISNS_FLAG_SND_SERVER 
-                                 | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU));  
-    p_msg->hdr.version  = htons (SNS_VERSION);  
-    p_msg->hdr.sequence = htons (p_msg->hdr.sequence);  
+    p_msg->hdr.type     = htons (p_msg->hdr.type);
+    p_msg->hdr.xid      = htons (p_msg->hdr.xid);
+    p_msg->hdr.msg_len  = htons (p_msg->hdr.msg_len);
+    p_msg->hdr.flags    = htons ((short)(p_msg->hdr.flags | ISNS_FLAG_SND_SERVER
+                                 | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU));
+    p_msg->hdr.version  = htons (SNS_VERSION);
+    p_msg->hdr.sequence = htons (p_msg->hdr.sequence);
 
     status = SUCCESS;
     if (sns_comm_support == SNS_LAYER_2)
     {
        inet_ntoa_b (mc_sock.sin_addr, dot_not_addr);
        if ( sendto(sd, (void *)p_msg, len,
-                   0, (struct sockaddr *)&mc_sock, 
+                   0, (struct sockaddr *)&mc_sock,
                    sizeof(struct sockaddr_in)) == ERROR)
           status = ERROR;
     }
@@ -716,7 +690,7 @@ SNSSendMsg2MCgrp (ISNS_Msg *p_msg)
        inet_ntoa_b (mc_dest_sock.sin_addr, dot_not_addr);
 
        if ( sendto(mc_sd, (void *)p_msg, len,
-                   0, (struct sockaddr *)&mc_dest_sock, 
+                   0, (struct sockaddr *)&mc_dest_sock,
                    sizeof(struct sockaddr_in)) == ERROR)
           status = ERROR;
    }
@@ -727,11 +701,11 @@ SNSSendMsg2MCgrp (ISNS_Msg *p_msg)
 
     __DEBUG (display_debug,
              (iSNS Sending bcast/mcast msg id %d, len %d, xid %d to %s),
-             p_msg->hdr.type, p_msg->hdr.msg_len, 
+             p_msg->hdr.type, p_msg->hdr.msg_len,
              p_msg->hdr.xid, dot_not_addr);
 
     return (status);
-   
+
 }
 
 
@@ -742,7 +716,7 @@ SNSSendMsg2MCgrp (ISNS_Msg *p_msg)
  * Synopsis:      SNSGetIfAddr();
  *
  * Description:   Obtain the IP address associated with the NIC being
- *                used by a SOIP service entity. 
+ *                used by a SOIP service entity.
  *
  * Return value:  32 bit IPv4 address in network byte order.
  *
@@ -769,7 +743,7 @@ SNSGetIfAddr(void)
  * Synopsis:      SNSGetIfBroadcastAddr();
  *
  * Description:   Obtain the Broadcat IP address associated with the NIC being
- *                used by a SOIP service entity. 
+ *                used by a SOIP service entity.
  *
  * Return value:  32 bit IPv4 address in network byte order.
  *
@@ -818,3 +792,53 @@ SNSGetIPAddress()
    h_addr.s_addr= *(uint32_t *)(host->h_addr_list[0]);
    return h_addr.s_addr;
 }
+
+/*********************************************************************
+     Func Name : ISCSI_ADJ_ResetNotify
+  Date Created : 2010/10/20
+        Author : chaojunxian  07617
+   Description : 异步通知邻居线程reset
+         Input : IN UINT uiSysIndex          系统索引
+                 IN USHORT usMtIndex         拓扑索引
+                 IN ISCSI_RESET_NOTIFY_TYPE_E enNotifyType     Reset通知类型
+                 IN ISCSI_RESET_TRIGGER_TYPE_E enResetReason   Reset触发原因
+        Output : NONE
+        Return : ERROR_FAILED         失败
+                 ERROR_SUCCESS        成功
+       Caution : 系统事件模块调用接口
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ULONG ISCSI_ISNS_ResetNotify(IN USHORT usMtIndex,
+                          IN ISCSI_RESET_NOTIFY_TYPE_E enNotifyType,
+                          IN ISCSI_RESET_TRIGGER_TYPE_E enResetReason)
+{
+    RWSTQ_HEAD_S *pstAdjQue = ISCSI_ISNS_ThreadEventMsgQueGet();
+    ISCSI_ISNS_EVENT_RESET_MSG_S *pstMsg = NULL;
+
+    IGNORE_PARAM(usMtIndex);
+    IGNORE_PARAM(enResetReason);
+
+    ULONG ulSize = sizeof(ISCSI_ISNS_EVENT_RESET_MSG_S);
+
+    pstMsg = (ISCSI_ISNS_EVENT_RESET_MSG_S *) malloc(ulSize);
+    if(NULL == pstMsg)
+    {
+        return ERROR_FAILED;
+    }
+    memset(pstMsg, 0, ulSize);
+    pstMsg->stIsMsgHdr.uiMsgType = enNotifyType;
+    pstMsg->stIsMsgHdr.uiSubMsgType = enNotifyType;
+    pstMsg->usMtIndex = usMtIndex;
+    pstMsg->uiResetReason = enResetReason;
+
+    /*向线程消息队列添加消息并发送信号，通知邻居线程*/
+    ISCSI_EVT_ThreadQueueMsgAdd(ISCSI_ISNS_EventFdGet(), pstAdjQue, pstMsg);
+
+    return ERROR_SUCCESS;
+}
+
+

@@ -88,10 +88,9 @@ typedef struct ipc_ep {
 extern int
 SendIPCMessage (IPC_EP_Name, void *, int, int);
 
+extern ULONG ReceiveIPCMessage (IN UINT uiEvent, IN VOID *pHandle);
+
 extern int
-ReceiveIPCMessage (IPC_EP_Name, void *, int, int);
- 
-extern int 
 CreateIPCEndPoint (IPC_EP_Name);
 
 extern int

@@ -41,6 +41,24 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <sys/netdb.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/l3vpn.h>
+#include <sys/dns.h>
+#include <sys/list.h>
+#include <sys/assert.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_packet.h"
+#include "../../include/iscsi_main.h"
+
 #include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSmsg.h"
@@ -637,7 +655,7 @@ SNSdbGetAttrDDEntry (int id, ISNS_Attr **attr_indx, ISNS_Msg * p_msg)
      Func Name : isns_ldap_checkKeyNum
   Date Created : 2016/10/8
         Author : liang
-   Description : ¡§a?¡ì?a?????3¡§???¡ê¡è?¡è?¨¦reset
+   Description : ¨ª¡§?a?¡Â??3¨¬¡ä£¤¡¤¡éreset
          Input : ISNS_Attr **key_indx       Message Key
         Output : ?T
         Return : sattus code

@@ -43,17 +43,22 @@
 #include <sys/basetype.h>
 #include <sys/error.h>
 #include <sys/list.h>
+#include <sys/epoll.h>
 #include "iSNStypes.h"
 #include "iSNSmsg.h"
 #include "iSNSipc.h"
 #include "iSNSdebug.h"
 #include "iSNSparse.h"
 
+extern void SNSProcessRequest (ISNS_Msg_Descp *);
+
 /*
  * IPC endpoints used by the switch software entities
  */
 IPC_EP  ipc_ep[NUM_IPC_EP_NAMES+1];
- 
+
+extern ISNS_Msg_Descp main_md;
+
 MSG_Q_ID  SNSDevMgtQueue;
 MSG_Q_ID  SNSEpQueue;
 
@@ -87,7 +92,7 @@ CreateIPCEndPoint (IPC_EP_Name ep_name)
    ipc_ep[ep_name].their_addr.sin_family = AF_INET;
    ipc_ep[ep_name].their_addr.sin_port = htons ((short) (ep_name==DEVICE_MGMT_EP?6005:6006));
    ipc_ep[ep_name].their_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-   
+
    ipc_ep[ep_name].s = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (ipc_ep[ep_name].s < 0)
@@ -139,7 +144,7 @@ SendIPCMessage (IPC_EP_Name ep_name, void *p_msg, int msg_len, int options)
    if (cnt < 0)
    {
       __LOG_ERROR ("Error: sendto.");
-      exit(1);
+      //pthread_exit((void *)0);
    }
    return (SUCCESS); 
 }
@@ -161,26 +166,30 @@ SendIPCMessage (IPC_EP_Name ep_name, void *p_msg, int msg_len, int options)
  * Return value:  SUCCESS (0) or ERROR (-1)
  *
  */
-int
-ReceiveIPCMessage (IPC_EP_Name ep_name, void *p_msg, int max_len, int timeout)
+ULONG ReceiveIPCMessage (IN UINT uiEvent, IN VOID *pHandle)
 {
    int cnt;
    int len;
+   int iFd = (INT)(LONG)pHandle;
 
-   if (!(VALID_EP_NAME (ep_name)))
-      return (ERROR);
-   if (ipc_ep[ep_name].s == 0)
-      return (ERROR);
+   if (0 == (uiEvent & (UINT)EPOLLIN))
+   {
+       return ERROR_FAILED;
+   }
 
-   len=sizeof(ipc_ep[ep_name].their_addr);
-   cnt = recvfrom( ipc_ep[ep_name].s, p_msg, max_len, 0,
-      (struct sockaddr * )&ipc_ep[ep_name].their_addr, (socklen_t *)&len);
+   len=sizeof(ipc_ep[SNS_EP].their_addr);
+   cnt = recvfrom(iFd, &main_md, sizeof (ISNS_Msg_Descp), 0,
+      (struct sockaddr * )&ipc_ep[SNS_EP].their_addr, (socklen_t *)&len);
 
    if (cnt < 0)
    {
       __LOG_ERROR ("Receive error.");
-      exit(1);
+      pthread_exit((void *)0);
    }
+
+   SNSConvertPayloadNTOH (&main_md);
+   SNSProcessRequest (&main_md);
+
    return(SUCCESS);
 }
 

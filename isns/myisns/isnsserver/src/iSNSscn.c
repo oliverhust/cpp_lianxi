@@ -1,34 +1,34 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 /*
@@ -42,6 +42,19 @@
 
 #include <sys/basetype.h>
 #include <sys/error.h>
+#include <sys/assert.h>
+#include <sys/list.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_packet.h"
+#include "../../include/iscsi_main.h"
+
 #include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSdb.h"
@@ -114,7 +127,7 @@ send_iscsi_scn_md(char *p_node_name, ISNS_Msg_Descp *p_md)
 
    rval = read_ISCSIObject(p_node_name, &p_node, &lentry);
    if (rval != SUCCESS)
-     return rval;  
+     return rval;
 
    if (!p_node->scn_bitmap)
       return (SUCCESS);
@@ -207,7 +220,7 @@ send_iscsi_scn_md(char *p_node_name, ISNS_Msg_Descp *p_md)
 Sends a SCN to all the DD members of the node that's passed in.
 ********************************************************************/
 int
-send_iscsi_scn_to_members ( SOIP_Iscsi * p_node, char *p_src_name, 
+send_iscsi_scn_to_members ( SOIP_Iscsi * p_node, char *p_src_name,
                             ISNS_Msg *p_scn_msg, uint32_t scn_bitmap )
 {
    ISNS_Msg             *p_msg;
@@ -271,12 +284,12 @@ send_iscsi_scn_to_members ( SOIP_Iscsi * p_node, char *p_src_name,
         {
          continue;
         }
-      
+
         memset(p_scn_md, 0, sizeof(ISNS_Msg_Descp));
         p_msg->hdr.type = ISNS_SCN;
 
         /* Add Dest Attribute */
-        ISNSAppendKey (p_msg, ISNS_ISCSI_NODE_ID, 
+        ISNSAppendKey (p_msg, ISNS_ISCSI_NODE_ID,
            PAD4 (strlen (p_member->node_id)), p_member->node_id, 0);
 
         /* Add Timestamp */
@@ -284,14 +297,14 @@ send_iscsi_scn_to_members ( SOIP_Iscsi * p_node, char *p_src_name,
                      NULL, time (&t));
 
         /* Copy the src attribute buffer into the msg */
-        memcpy((char *)&p_msg->payload+p_msg->hdr.msg_len, 
+        memcpy((char *)&p_msg->payload+p_msg->hdr.msg_len,
             (char *)&p_scn_msg->payload, p_scn_msg->hdr.msg_len);
 
         p_msg->hdr.msg_len+=p_scn_msg->hdr.msg_len;
 
         /* Send SCN msg */
         send_iscsi_scn_md(p_member->node_id, p_scn_md);
-     }   
+     }
    }
 
    return ( SUCCESS );
@@ -407,7 +420,7 @@ ISNS_Process_SCN ( ISNS_Msg_Descp *p_md, ISNS_Msg *p_rsp_msg )
          }
 
          /* Fill in rsp */
-         ISNSAppendKey( p_rsp_msg, ISNS_ISCSI_NODE_ID, 
+         ISNSAppendKey( p_rsp_msg, ISNS_ISCSI_NODE_ID,
              PAD4( strlen( p_scn->name.v ) ), p_scn->name.v, 0 );
          break;
     }
@@ -426,13 +439,13 @@ ISNSAttrGetList (ISNS_Msg_Descp *p_md)
     int           num_entries;
     int           display_debug;
     uint16_t      len;
-    
+
     display_debug = 0;
     if ((sns_cb_debug == 3) && (p_md->msg.hdr.type != ISNS_SCN))
        display_debug = (sns_cb_msg_filter == p_md->msg.hdr.type);
 
     /*
-     * Initialize the vars and go to the start 
+     * Initialize the vars and go to the start
      * of the message..
      */
     p_aval         = NULL;
@@ -442,17 +455,17 @@ ISNSAttrGetList (ISNS_Msg_Descp *p_md)
     if (p_md->msg.hdr.type == ISNS_SCN)
     {
        /* No error Code */
-       p_key   = (ISNS_Key *)&p_md->msg.payload; 
+       p_key   = (ISNS_Key *)&p_md->msg.payload;
        sns_attr_len   = p_md->msg.hdr.msg_len;
     }
     else
     {
        /* Error Code */
-       p_key   = (ISNS_Key *)&p_md->msg.payload+ISNS_ERROR_CODE_SIZE; 
+       p_key   = (ISNS_Key *)&p_md->msg.payload+ISNS_ERROR_CODE_SIZE;
        sns_attr_len   = p_md->msg.hdr.msg_len-ISNS_ERROR_CODE_SIZE;
     }
-    __DEBUG (display_debug, (Attributes length : 0x%x), sns_attr_len); 
-    
+    __DEBUG (display_debug, (Attributes length : 0x%x), sns_attr_len);
+
     /*
      * Go through the message's attributes and parse them into
      * the Attribute list. NOTE: All the pointers are allocated
@@ -475,7 +488,7 @@ ISNSAttrGetList (ISNS_Msg_Descp *p_md)
         val_location = SNSAttrGetAttrValLocation((ISNS_Attr *)loc_ptr1);
         len = ((ISNS_Attr *)loc_ptr1)->len;
 
-        if (val_location == NULL) 
+        if (val_location == NULL)
         {
             __LOG_WARNING("AttrGetList id not found (tag:%i, msg id:%i, xid:%i)",
                      ((ISNS_Attr *)loc_ptr1)->tag, p_md->msg.hdr.type,
@@ -497,15 +510,15 @@ ISNSAttrGetList (ISNS_Msg_Descp *p_md)
         if ((sns_scn_debug == 3) && (p_md->msg.hdr.type == ISNS_SCN))
         {
            if (p_aval[num_entries].attr_id == RSCN_EVENT)
-              display_debug = (sns_scn_msg_filter == 
+              display_debug = (sns_scn_msg_filter ==
                                *(int *)p_aval[num_entries].attr_val);
         }
-        __DEBUG (display_debug, (attr id %u, len %d), 
+        __DEBUG (display_debug, (attr id %u, len %d),
                  p_aval[num_entries].attr_id,
                  p_aval[num_entries].attr_len);
 
         /* End Debugging */
-         loc_ptr1  = (char *) loc_ptr1 + ISNS_SIZEOF_TAG + len; 
+         loc_ptr1  = (char *) loc_ptr1 + ISNS_SIZEOF_TAG + len;
          num_entries++;
     }
     /*
@@ -513,7 +526,7 @@ ISNSAttrGetList (ISNS_Msg_Descp *p_md)
      */
     if (p_aval != NULL)
     {
-        p_attr_vals_cb = (ISNS_ATTR_VALS_CB *) 
+        p_attr_vals_cb = (ISNS_ATTR_VALS_CB *)
           ISNSAllocBuffer(sizeof (ISNS_ATTR_VALS_CB));
 
         if (p_attr_vals_cb == NULL)

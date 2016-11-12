@@ -1,34 +1,34 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
+  
+  Redistribution and use in source and binary forms, with or without 
+  modification, are permitted provided that the following conditions are 
   met:
-
-  - Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
-  - Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-
-  - Neither the name of the Nishan Systems, Inc. nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+  
+  - Redistributions of source code must retain the above copyright notice, 
+    this list of conditions and the following disclaimer. 
+  
+  - Redistributions in binary form must reproduce the above copyright 
+    notice, this list of conditions and the following disclaimer in the 
+    documentation and/or other materials provided with the distribution. 
+  
+  - Neither the name of the Nishan Systems, Inc. nor the names of its 
+    contributors may be used to endorse or promote products derived from 
+    this software without specific prior written permission. 
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+ 
 ***********************************************************************/
 
 
@@ -43,13 +43,27 @@
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/basetype.h>
 #include <sys/error.h>
+#include <sys/errno.h>
+#include <sys/epoll.h>
 #include <sys/list.h>
-#include <unistd.h>
+#include <sys/in.h>
+#include <sys/eventfd.h>
+
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_util.h"
+#include "../../include/iscsi_event.h"
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_packet.h"
+#include "../../include/iscsi_main.h"
+
+
 #include "iSNSLinux.h"
 #include "iSNStypes.h"
 #include "iSNS.h"
@@ -67,6 +81,8 @@
 #include "iSNSesi.h"
 #include "iSNSscn.h"
 #include "iSNSdebug.h"
+#include "iSNSEpoll.h"
+#include "iSNSevent.h"
 
 ISNS_Entity isns_role = 0;
 
@@ -86,16 +102,18 @@ int sns_request_retries = SNS_REQUEST_RETRIES;
 int sns_request_timeout = 0;
 
 extern int sns_fsm_timeout;
-
+extern int sns_status;
+extern pthread_cond_t sns_status_cond;
+extern IPC_EP  ipc_ep[NUM_IPC_EP_NAMES+1];
 /*
- * Timer used for retransmitting iSNS requests and for timing out
+ * Timer used for retransmitting iSNS requests and for timing out 
  * requests awaiting a response.
  */
 pthread_mutex_t sns_request_timer;
 pthread_cond_t request_cond = PTHREAD_COND_INITIALIZER;
 extern pthread_mutex_t sns_fsm_timer;
 extern pthread_mutex_t sns_resync_timer;
-extern pthread_mutex_t sns_esi_timer;
+extern pthread_mutex_t sns_esi_timer;  
 
 /*
  * the current main message descriptor being processed
@@ -116,42 +134,87 @@ void SNSReqTimeoutHdlr (void);
 int SNSExecCallback (ISNS_Msg_Descp *, int status);
 void SNSCheckTxQueue ();
 void SNSCheckInitTxQueue (ISNS_Msg_Descp * p_md);
-int TCP_RecvMain();
+int ISNS_RecvMain();
 static int ISNSdbExec( ISNS_Msg_Descp *p_md, ISNS_Msg_Descp *p_rsp_md);
 extern void ISNSNotReady ();
+
+/*********************************************************************
+     Func Name : iscsi_isns_ThreadSetup
+  Date Created : 2016/10/10
+        Author : lichao@dian
+   Description : isns线程初始化
+         Input : 无
+        Output : 无
+        Return : 无
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC VOID iscsi_isns_ThreadSetup()
+{
+    INT iEventFd = ISCSI_FD_INIT;
+
+    /* 创建EventFd */
+    iEventFd = eventfd(0, 0);
+    if (0 <= iEventFd)
+    {
+        ISCSI_ISNS_EventFdSet(iEventFd);
+
+        /* 将句柄加入到epoll链表中 */
+        ISCSI_UTL_EpollAddFd(ISCSI_ISNS_MainEpollHandleGet(), iEventFd,
+                             EPOLLIN, ISCSI_ISNS_EventProcess);
+    }
+
+    ISCSI_EVT_ThreadQueueInit(ISCSI_ISNS_ThreadEventMsgQueGet(),
+                              ISCSI_ISNS_ThreadEventDataQueGet());
+
+    sns_status = ENABLE;
+    pthread_cond_signal(&sns_status_cond);
+
+    return;
+}
 
 /********************************************************************
  * Function Name:    SNSMain
  *
  * Synopsis:         void SNSMain();
  *
- * Description:      SNSMain is the entry-point of the SoIP
- *                   service task.
+ * Description:      SNSMain is the entry-point of the SoIP 
+ *                   service task. 
  *
- * Return value:     If task is successfully initialized,
- *                   SNSMain() will not return. If an error
- *                   occurs during initialization SNSMain()
+ * Return value:     If task is successfully initialized, 
+ *                   SNSMain() will not return. If an error 
+ *                   occurs during initialization SNSMain() 
  *                   returns ERROR (-1).
  *
- *
+ * 
  ********************************************************************/
 int
 SNSMain (ISNS_Entity role)
 {
    int rc;
    pthread_t athread;
-   ISNS_Msg_Descp *p_md;
+   int iEvNum;
+   int i;
+   struct epoll_event astEvents[ISCSI_EPOLL_MAX_EVENT_NUM];
+   ISCSI_EPOLL_CALLBACK_PF pfEpollProcess = NULL;
 
-   __LOG_INFO ("started IETF iSNS Open Source, v%s.", ISNS_VERSION);
+   //__LOG_INFO ("started IETF iSNS Open Source, v%s.", ISNS_VERSION);
    isns_role = ISNS_SECONDARY_SERVER;
 
-   if (pthread_create (&athread, NULL, (void*) TCP_RecvMain, NULL) != 0)
-        perror("Creating TCP_RecvMain");
+   /*设置线程运行状态*/
+   ISCSI_ISNS_ThreadStatusSet(ISCSI_THREAD_RUNNING);
 
+   if (ERROR_SUCCESS != ISCSI_ISNS_MainEpollInit())
+   {
+       __LOG_ERROR ("Failed to create epoll!");
+   }
    if (SNSInit (role) == ERROR)
         taskDelete (taskIdSelf ());
 
-#ifdef SNS_LINUX
    {
         int res;
     res = pthread_mutex_init (&sns_request_timer, NULL);
@@ -159,63 +222,81 @@ SNSMain (ISNS_Entity role)
     if (res  != 0)
     {
         __LOG_ERROR ("Mutex initialization failed!");
-        exit (-1);
+        pthread_exit((void *)0);
     }
     res = pthread_mutex_init (&sns_fsm_timer, NULL);
     if (res  != 0)
     {
         __LOG_ERROR ("Mutex initialization failed!");
-        exit (-1);
+        pthread_exit((void *)0);
     }
     res = pthread_mutex_init (&sns_esi_timer, NULL);
     if (res  != 0)
     {
         __LOG_ERROR ("Mutex initialization failed!");
-        exit (-1);
+        pthread_exit((void *)0);
     }
     res = pthread_mutex_init (&sns_resync_timer, NULL);
     if (res  != 0)
     {
         __LOG_ERROR ("Mutex initialization failed!");
-        exit (-1);
+        pthread_exit((void *)0);
     }
 
     pthread_t hdle;
     rc =(int)pthread_create (&hdle, NULL, (void *)SNSReqTimeoutThread, NULL);
     if (rc != 0){
         __LOG_ERROR ("Thread creation failed.");
-        exit (-1);
-    }
+        pthread_exit((void *)0);
+	}
    }
-#else
+
+    if (pthread_create (&athread, NULL, (void*) ISNS_RecvMain, NULL) != 0)
    {
+		perror("Creating ISNS_RecvMain");
+   }
       /*
        * Create the sns request timer
       */
-      sns_request_timer = CreateWaitableTimer (NULL, FALSE, NULL);
-      request_pid = CreateThread (0, 0, SNSReqTimeoutThread, &junk, 0, &request_id);
-   }
-#endif
 
    /*
     * Wait for a message to arrive.
     */
-   p_md = &main_md;
+   iscsi_isns_ThreadSetup();
+
+   ISCSI_UTL_EpollAddFd(ISCSI_ISNS_MainEpollHandleGet(), ipc_ep[SNS_EP].s,
+                        EPOLLIN, ReceiveIPCMessage);
 
    for (;;)
    {
-      if (SUCCESS == ReceiveIPCMessage (SNS_EP, (void *) p_md, sizeof (ISNS_Msg_Descp), 0))
-      {
-            SNSConvertPayloadNTOH (p_md);
-            SNSProcessRequest (p_md);
-      }
+       memset(astEvents, 0, sizeof(astEvents));
+       iEvNum = epoll_wait(ISCSI_ISNS_MainEpollHandleGet(), astEvents,
+                           ISCSI_EPOLL_MAX_EVENT_NUM, -1);
+
+       if ((iEvNum < 0) && (EINTR != errno))
+       {
+          perror("Failed to wait");
+          break;
+       }
+
+       for (i = 0; i < iEvNum; i++)
+       {
+           pfEpollProcess = (ISCSI_EPOLL_CALLBACK_PF)(ULONG)(astEvents[i].callback);
+
+           if(NULL != pfEpollProcess)
+           {
+                (VOID)pfEpollProcess(astEvents[i].events, astEvents[i].data.ptr);
+           }
+       }
 
       if (sns_request_timeout)
          SNSCheckTxQueue ();
 
       if (sns_fsm_timeout)
-         SNSCheckInitTxQueue (p_md);
+         SNSCheckInitTxQueue (&main_md);
    }
+
+   ISCSI_ISNS_MainEpollDeInit();
 
    return (SUCCESS);
 }                               /* End SNSMain */
@@ -232,8 +313,7 @@ SNSMain (ISNS_Entity role)
  *
  *
 ********************************************************************/
-void
-SNSProcessRequest (ISNS_Msg_Descp * p_md)
+void SNSProcessRequest (ISNS_Msg_Descp * p_md)
 {
 
    struct in_addr source_ip;
@@ -250,16 +330,16 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
    /* make a copy to forward to the primary */
    if (isns_role != ISNS_PRIMARY_SERVER)
    {
-     unparsed_md = (ISNS_Msg_Descp *) ISNSAllocBuffer(sizeof(ISNS_Msg_Cb) +
+     unparsed_md = (ISNS_Msg_Descp *) ISNSAllocBuffer(sizeof(ISNS_Msg_Cb) + 
                     sizeof(ISNS_Msg_Hdr) + p_md->msg.hdr.msg_len);
      if (unparsed_md == NULL)
      {
         __LOG_WARNING("ProcessRequest out of buffs (size:%i)",
-                 (int)(sizeof(ISNS_Msg_Cb) + sizeof(ISNS_Msg_Hdr) +
+                 (int)(sizeof(ISNS_Msg_Cb) + sizeof(ISNS_Msg_Hdr) + 
                  p_md->msg.hdr.msg_len));
         return;
      }
-     memcpy(unparsed_md, p_md, sizeof(ISNS_Msg_Cb) +
+     memcpy(unparsed_md, p_md, sizeof(ISNS_Msg_Cb) + 
             sizeof(ISNS_Msg_Hdr) + p_md->msg.hdr.msg_len);
    }
 
@@ -337,10 +417,10 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
 
          if (errorCode == SUCCESS)
          {
-            __DEBUG (isns_main_debug & 16, (%s),
+            __DEBUG (isns_main_debug & 16, (%s), 
                      "Attribute Registered in Local iSNS Database");
 
-            if ( msg_type == ISNS_SCN_REG_REQ &&
+            if ( msg_type == ISNS_SCN_REG_REQ && 
                  p_md->cb.sender == DEVICE_MGMT_EP )
             {
                ISNS_RegisterSCNCallback( p_md );
@@ -349,26 +429,26 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
              * If running as a client then register the attributes with
              * the primary server.
              */
-             if (isns_role == ISNS_CLIENT ||
+             if (isns_role == ISNS_CLIENT || 
                  isns_role == ISNS_SECONDARY_SERVER)
              {
                  inet_ntoa_b (server_sock.sin_addr, dot_not_addr);
-                 __DEBUG(isns_main_debug & 16, (%s, %s 0x%xu),
-                         "The server socket is: ", dot_not_addr,
+                 __DEBUG(isns_main_debug & 16, (%s, %s 0x%xu), 
+                         "The server socket is: ", dot_not_addr, 
                          (uint32_t)server_sock.sin_addr.s_addr);
-
+                            
                  if ( server_sock.sin_addr.s_addr == 0x0 )
                  {
                      p_md->cb.init_rmsg = 1;
-                     __DEBUG (isns_main_debug & 16, "(%s %d)",
-                              "Set the init reg msg",
-                              p_md->cb.init_rmsg);
+                     __DEBUG (isns_main_debug & 16, "(%s %d)", 
+                              "Set the init reg msg", 
+                              p_md->cb.init_rmsg); 
                  }
                 /*
-                 * Enqueue the request pending a response, start a
+                 * Enqueue the request pending a response, start a 
                  * response timer and forward the request to the server.
                  */
-                 __DEBUG (isns_main_debug & 16, "(%s %d)",
+                 __DEBUG (isns_main_debug & 16, "(%s %d)", 
                           "Forwarding reg request: XID is: ",
                           msg->hdr.xid);
                  /*
@@ -377,36 +457,29 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
                  unparsed_md->cb.ttl = sns_request_retries;
                  ISNSEnqReq ( SNS_TRANSACTION_QUEUE, unparsed_md );
                  if ( ISNSSendMsg2Server( &unparsed_md->msg ) == SUCCESS ) {
-                     __DEBUG (isns_main_debug & 16, "(%s %d)",
+                     __DEBUG (isns_main_debug & 16, "(%s %d)", 
                               "Message forwarded : XID is: ",
                               unparsed_md->msg.hdr.xid);
-#ifndef SNS_LINUX
-                     wdCancel(sns_request_timer);
-#endif
 
-#ifdef SNS_LINUX
+             
+
+
                      timeout = (int)((ISNSQHead(SNS_TRANSACTION_QUEUE))->cb.resp_timeout - time ((time_t*) 0) );
-#else
-                     timeout = (int)((ISNSQHead(SNS_TRANSACTION_QUEUE))->cb.resp_timeout - tickGet());
-#endif
-                     __DEBUG (isns_main_debug & 16, "(%s %d)",
-                              "Device registration timeout value",
+
+                     __DEBUG (isns_main_debug & 16, "(%s %d)", 
+                              "Device registration timeout value", 
                               timeout);
                      if (timeout < 1)
                         timeout = 1;
-#ifndef SNS_LINUX
-                     wdStart(sns_request_timer,
-                             timeout,
-                             SNSReqTimeoutHdlr,
-                             NULL);
-#endif
+
+
                  }
                  else {
                    /* Error Case while forwarding to primary */
                    ISNSCommUpdate(&null_addr);
                    ISNSNotReady();
                    /*
-                    * send a response back to the originator
+                    * send a response back to the originator 
                     * of the request.
                     */
                     msg->hdr.type  = 0x8000 | msg_type;
@@ -418,7 +491,7 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
                     SNSExecCallback( p_md, ISNS_UNKNOWN_ERR );
                     if ( unparsed_md )
                        ISNSFreeBuffer( (char*)unparsed_md );
-                 }
+                 }                   
                  return;
              }
          }
@@ -464,7 +537,7 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
    case ISNS_SCN:
    {
        __DEBUG (isns_main_debug & 16, (Received %s), FuncIDText((short)msg_type));
-
+       
        errorCode = ISNSdbExec(p_md, &query_md);
 
        /* Send back a response */
@@ -484,7 +557,7 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
    case ISNS_ENTITY_GET_NXT_PORTAL_RES:
    case ISNS_DEV_GET_NXT_RES:
    case ISNS_DEREG_DEV_RES:
-   case ISNS_SCN_REG_RES:
+   case ISNS_SCN_REG_RES: 
    case ISNS_SCN_DEREG_RES:
    case ISNS_SCN_EVENT_RES:
    case ISNS_REG_DD_RES:
@@ -493,7 +566,7 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
    case ISNS_DEREG_DDS_RES:
    {
        __DEBUG (isns_main_debug & 16, (Received %s), FuncIDText((short)msg_type));
-       __DEBUG (isns_main_debug & 16, (Received iSNS response for xid %d),
+       __DEBUG (isns_main_debug & 16, (Received iSNS response for xid %d), 
                 msg->hdr.xid);
       /*
        * Remove the corresponding request from the request queue
@@ -502,11 +575,11 @@ SNSProcessRequest (ISNS_Msg_Descp * p_md)
 
        if (p_req_md != NULL)
        {
-           __DEBUG (isns_main_debug & 16, (%s %d qid %d),
+           __DEBUG (isns_main_debug & 16, (%s %d qid %d), 
                     "Received transaction msg id : ", msg->hdr.xid,
                     p_req_md->msg.hdr.xid);
 
-           /*
+           /* 
             * Check if this is and async or sync operation. Send back the
             * appropriate response.
             */
@@ -559,7 +632,7 @@ SNSReqTimeoutHdlr (void)
  * Description:      SNSExecCallback executes a users callback.
  *
  * Return value:     SUCCESS or ERROR.
- *
+ * 
 ********************************************************************/
 int
 SNSExecCallback (ISNS_Msg_Descp * p_md, int status)
@@ -596,7 +669,7 @@ SNSExecCallback (ISNS_Msg_Descp * p_md, int status)
       {
       default:
          {
-            /*
+            /* 
              * These are requests that never went to the primary,
              * so free the callback buffer.
              */
@@ -640,24 +713,19 @@ SNSCheckTxQueue ()
       {
 
          /* retry sending all timeout out msgs */
-#ifdef SNS_LINUX
-         while ((p_md) && ((unsigned) p_md->cb.resp_timeout < (long
+         while ((p_md) && ((unsigned) p_md->cb.resp_timeout < (long 
 double)time ((time_t*) 0) ))
-#else
-         while ((p_md) && ((unsigned) p_md->cb.resp_timeout < tickGet ()))
-#endif
+
          {
 
             __DEBUG (isns_main_debug & 32, (%s % d % d),
                      "iSNS retrying to forward msg, xid",
                      p_md->msg.hdr.type, p_md->msg.hdr.xid);
             if (ISNSSendMsg2Server (&p_md->msg) == SUCCESS)
-#ifdef SNS_LINUX
-               p_md->cb.resp_timeout = (long double)time ((time_t*) 0) +
+
+               p_md->cb.resp_timeout = (long double)time ((time_t*) 0) + 
 timeout;
-#else
-               p_md->cb.resp_timeout = tickGet () + timeout;
-#endif
+
             /* decrement ttl */
             p_md->cb.ttl--;
 
@@ -688,7 +756,7 @@ timeout;
 
       __DEBUG (isns_main_debug & 32, (%s %d), "Checking the transaction: ",
                xid);
-      /*
+      /* 
        * Check if this is an async or sync operation. Send back the
        * appropriate response.
        */
@@ -736,7 +804,7 @@ static void regCallback(ISNS_Msg_Descp* p_md)
     reg_callback->msg.hdr.type    = p_md->msg.hdr.type;
     reg_callback->msg.hdr.msg_len = (uint16_t) sizeof (p_md->cb.callback_func);
     reg_callback->msg.hdr.flags   = 0;
-    reg_callback->msg.payload.rcb_req.func_val.rfunc = p_md->cb.callback_func.reg_func;
+    reg_callback->msg.payload.rcb_req.func_val.rfunc = p_md->cb.callback_func.reg_func; 
     ISNSEnqReq (ISNS_CALLBACK_QUEUE, reg_callback);
 }
 

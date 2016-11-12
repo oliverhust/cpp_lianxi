@@ -33,6 +33,8 @@
 
 #include <stdio.h>                  /* for EOF */
 #include <string.h>                 /* for strchr() */
+#include <stdlib.h>
+#include <unistd.h>
 
 
 /* static (global) variables that are specified as exported by getopt() */
@@ -44,6 +46,7 @@ int   opterr = 1;       /* non-zero if a question mark should be returned
 /* handle possible future character set concerns by putting this in a macro */
 #define _next_char(string)  (char)(*(string+1))
 
+#if 0
 int getopt(int argc, char *argv[], char *opstring)
 {
     static char *pIndexPosition = NULL; /* place inside current argv string */
@@ -138,3 +141,4 @@ int getopt(int argc, char *argv[], char *opstring)
         return (int)*pArgString;    /* return the letter that matched */
     }
 }
+#endif

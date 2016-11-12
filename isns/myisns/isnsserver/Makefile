@@ -71,6 +71,8 @@ OBJECTS += iSNSdbMem.o
 OBJECTS += iSNSMemData.o
 OBJECTS += iSNSdbLdap.o
 OBJECTS += iSNSLdapLib.o
+OBJECTS += iSNSEpoll.o
+OBJECTS += iSNSevent.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -179,6 +181,12 @@ iSNSdbLdap.o : $(SRCDIR)iSNSdbLdap.c
 iSNSLdapLib.o : $(SRCDIR)iSNSLdapLib.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
+iSNSEpoll.o : $(SRCDIR)iSNSEpoll.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+iSNSevent.o : $(SRCDIR)iSNSevent.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+	
 ut : 
 	dos2unix $(SRCDIR)NdbTest.c
 	$(CC) -std=c99 -I$(INCDIR) $(CFLAGS) $(LIBS) -o ndbTest $(SRCDIR)iSNSNdb.c $(SRCDIR)NdbTest.c $(SRCDIR)iSNSNdbLdap.c $(SRCDIR)iSNShash.c

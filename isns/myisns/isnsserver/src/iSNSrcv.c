@@ -1,44 +1,68 @@
 /***********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
 
 
 /*
  * This file contains source code for receiving UDP messages
- * from a SOIP service entity. The messages received over 
+ * from a SOIP service entity. The messages received over
  * the socket are queued and later processed by the SOIP
  * service agent task.
  *
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+#include <sys/netdb.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/l3vpn.h>
+#include <sys/dns.h>
+#include <sys/list.h>
+#include <sys/assert.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_packet.h"
+#include "../../include/iscsi_main.h"
+
+#include "iSNStypes.h"
 #include "iSNS.h"
 #include "iSNSmsg.h"
 #include "iSNSfsm.h"
@@ -65,13 +89,10 @@ int sns_recv_num_cli_fwd = 0;
 #define ARRAY_DEPTH  20
 #define ARRAY_WIDTH  12
 
-#ifdef SNS_LINUX
 unsigned int sns_recv_msg_array[ARRAY_DEPTH][2 + ARRAY_WIDTH];
-#else
-int sns_recv_msg_array[ARRAY_DEPTH][2 + ARRAY_WIDTH];
-#endif
 
-         
+
+
 static ISNS_Msg_Descp md;
 static void SNS_SaveRecentMsg(ISNS_Msg_Descp *p_md);
 
@@ -81,166 +102,187 @@ static void SNS_SaveRecentMsg(ISNS_Msg_Descp *p_md);
  * Synopsis:         int SNSReceiveMain(int sd);
  *
  * Parameters:       sd = descriptor of receive socket
- *  
- * Description:      SNSMain is the entry-point of the SoIP 
- *                   service task. 
  *
- * Return value:     If task is successfully initialized, 
- *                   SNSMain() will not return. If an error 
- *                   occurs during initialization SNSMain() 
+ * Description:      SNSMain is the entry-point of the SoIP
+ *                   service task.
+ *
+ * Return value:     If task is successfully initialized,
+ *                   SNSMain() will not return. If an error
+ *                   occurs during initialization SNSMain()
  *                   returns ERROR (-1).
  *
- * 
+ *
  */
-#ifdef SNS_LINUX
-int
-#else
-DWORD WINAPI
-#endif
-SNSReceiveMain (LPVOID lparam)
+
+ULONG SNSReceiveCallBack (IN UINT uiEvent, IN VOID *pHandle)
 {
      static int first_warn = TRUE;
      ISNS_Msg    *p_msg = NULL;
+     INT iFd = (INT)(LONG)pHandle;
+
+     if (0 == (uiEvent & (UINT)EPOLLIN))
+     {
+         return ERROR_FAILED;
+     }
+
+     bzero ((char *) &md.cb.sock.addr, sizeof(struct sockaddr));
+     bzero ((char *) &md.msg, sizeof (ISNS_Msg));
+
+     md.cb.sock.len = sizeof (struct sockaddr_in);
+
+     /* Set this as UDP */
+     md.cb.sock.socketType = ISNS_SOCKET_TYPE_UDP;
 
      memset((char *)&frag_md, 0, sizeof(ISNS_Msg_Descp));
-             
-     __DEBUG (isns_main_debug & 1, "Starting SNSReceiveMain thread.");
      /*
       * Wait for a message to arrive on the socket.
       * Forward the received message to the iSNS core
       * task for processing.
       */
-      for (;;)
-      {
-         extern int pauseFlag;
-         if (pauseFlag)
-            return (-1);
 
-          if (( SNSGetMsg (&md)) != ERROR )
-          {
-               p_msg = &md.msg;
-               SNS_SaveRecentMsg(&md);
+    if (recvfrom (iFd, (char *) &md.msg, sizeof (ISNS_Msg),
+                                  0, (struct sockaddr *) &md.cb.sock.addr,
+                                  &md.cb.sock.len) == -1 )
+    {
+        __LOG_ERROR ("Error recform ");
 
-               /* Check the flags */
+        if (isns_role != ISNS_PRIMARY_SERVER)
+        {
+            if (SendIPCMessage(SNS_EP, (void *)&md,
+                sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr) +
+                              p_msg->hdr.msg_len, 0) == ERROR)
+            {
+              __LOG_ERROR ("%s %d: Error forwarding res message (xid %d)",
+                      __FILE__, __LINE__, p_msg->hdr.xid);
+            }
+            else
+            {
+              sns_recv_num_cli_fwd++;
+              sns_recv_num_dropped++;
+              __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
+           }
+        }
+        else if (isns_role == ISNS_PRIMARY_SERVER)
+        {
+           if (SendIPCMessage(SNS_EP, (void *)&md,
+               sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr) +
+               p_msg->hdr.msg_len, 0) == ERROR)
+           {
+              __LOG_ERROR ("%s %d: Error forwarding op message (xid %d)",
+                      __FILE__, __LINE__, p_msg->hdr.xid);
+           }
+           else
+           {
+             sns_recv_num_dropped++;
+             __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
+           }
+        }
+        else
+        {
+          __LOG_ERROR ("Socket Error");
+               taskDelay(1*sysClkRateGet());
+        }
+    }
+    else
+    {
+       {
+           /* iSNS msg */
+           md.msg.hdr.type    = ntohs (md.msg.hdr.type);
+           md.msg.hdr.xid     = ntohs (md.msg.hdr.xid);
+           md.msg.hdr.msg_len = ntohs (md.msg.hdr.msg_len);
+           md.msg.hdr.flags   = ntohs (md.msg.hdr.flags);
 
-               /* If First PDU set */
-               if (p_msg->hdr.flags & ISNS_FLAG_FIRST_PDU)
-               {
-                   if (awaiting_fragment)
-                   {
-                      /* got another while waiting: drop previous message */
-                      sns_recv_num_dropped++;
-                      __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
-                      awaiting_fragment = 0;
-                      frag_len = 0;
-                   }
+           md.msg.hdr.version  = ntohs (md.msg.hdr.version);
+           md.msg.hdr.sequence = ntohs (md.msg.hdr.sequence);
+       }
 
-                   /* save header */
-                   memcpy((char *)&frag_md, (char *)&md, 
-                          sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
-               }
-               else
-               {
-                   /* xid and version must match prev */
-                   if ((frag_md.msg.hdr.xid != p_msg->hdr.xid) ||
-                       (frag_md.msg.hdr.version != p_msg->hdr.version))
-                   {
-                      sns_recv_num_dropped++;
+       p_msg = &md.msg;
+       SNS_SaveRecentMsg(&md);
 
-                      __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
-                      awaiting_fragment = 0;
-                      frag_len = 0;
-                      memset((char *)&frag_md, 0, 
-                             sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
-                      continue;
-                   }
-               }
+       /* Check the flags */
 
-                /* copy into buffer */
-                memcpy((char *)&frag_md.msg.payload + frag_len, 
-                       (char *)&p_msg->payload, p_msg->hdr.msg_len);
-                awaiting_fragment++;
-                frag_len += p_msg->hdr.msg_len;
+       /* If First PDU set */
+       if (p_msg->hdr.flags & ISNS_FLAG_FIRST_PDU)
+       {
+           if (awaiting_fragment)
+           {
+              /* got another while waiting: drop previous message */
+              sns_recv_num_dropped++;
+              __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
+              awaiting_fragment = 0;
+              frag_len = 0;
+           }
 
-                if (!(p_msg->hdr.flags & ISNS_FLAG_FIRST_PDU))
-                   continue;
-
-                /* got all fragments, copy back into msg buffer */
-                memcpy((char *)&md, (char *)&frag_md, 
-                       frag_len + sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
-                md.msg.hdr.msg_len = frag_len;
-
-                /* clear all frag variables */
-                memset((char *)&frag_md, 0,
-                       frag_len + sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
-                awaiting_fragment = 0;
-                frag_len = 0;
-
-                if ((p_msg->hdr.version > SNS_VERSION) && (first_warn))
-                {
-                   /*
-                    * SNS_WARN(SNS_VERSION_WARN, 
-                    *          "version mismatch (current, new)\n",
-                    *          SNS_VERSION, p_msg->hdr.version, 0);
-                    */
-                   __LOG_WARNING("NOTE: Newer version (v %d) of iSNS detected in the",
-                          p_msg->hdr.version);
-                   __LOG_WARNING("network.  Current version is v %d.", 
-                          (int)SNS_VERSION);
-                   first_warn = FALSE;
-                }
-
-                md.cb.sender = ISNS_REMOTE;
-                if (SendIPCMessage(SNS_EP, (void *)&md, sizeof(SNS_Msg_Cb) + 
-                                   sizeof(SNS_Msg_Hdr) + p_msg->hdr.msg_len, 
-                                   IPC_MSG_PRI_HI) == ERROR)
-                {
-                   __LOG_ERROR ("%s %d: Error forwarding fsm message (xid %d)", 
-                              __FILE__, __LINE__, p_msg->hdr.xid);
-                }
-               } 
-               else if (isns_role != ISNS_PRIMARY_SERVER)
-               {
-                   if (SendIPCMessage(SNS_EP, (void *)&md, 
-                        sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr) + 
-                                      p_msg->hdr.msg_len, 0) == ERROR)
-                   {
-                      __LOG_ERROR ("%s %d: Error forwarding res message (xid %d)",
-                              __FILE__, __LINE__, p_msg->hdr.xid);
-                   }
-                  else 
-                  {
-                      sns_recv_num_cli_fwd++;
-                      sns_recv_num_dropped++;
-                      __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
-                  }
-               }
-               else if (isns_role == ISNS_PRIMARY_SERVER)
-               {
-                   if (SendIPCMessage(SNS_EP, (void *)&md, 
-                       sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr) + 
-                       p_msg->hdr.msg_len, 0) == ERROR)
-                   {
-                      __LOG_ERROR ("%s %d: Error forwarding op message (xid %d)", 
-                              __FILE__, __LINE__, p_msg->hdr.xid);
-                   } 
-                   else 
-                   {
-                     sns_recv_num_dropped++;
-                     __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
-                   }
+           /* save header */
+           memcpy((char *)&frag_md, (char *)&md,
+                  sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
        }
        else
        {
-          __LOG_ERROR ("Socket Error");
-               taskDelay(1*sysClkRateGet());
-           }
-      }
+           /* xid and version must match prev */
+           if ((frag_md.msg.hdr.xid != p_msg->hdr.xid) ||
+               (frag_md.msg.hdr.version != p_msg->hdr.version))
+           {
+              sns_recv_num_dropped++;
 
-      return (-1);
+              __LOG_ERROR("dropped frame %d", sns_recv_num_dropped);
+              awaiting_fragment = 0;
+              frag_len = 0;
+              memset((char *)&frag_md, 0,
+                     sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
+
+              return ERROR;
+           }
+       }
+
+        /* copy into buffer */
+        memcpy((char *)&frag_md.msg.payload + frag_len,
+               (char *)&p_msg->payload, p_msg->hdr.msg_len);
+        awaiting_fragment++;
+        frag_len += p_msg->hdr.msg_len;
+
+        if (!(p_msg->hdr.flags & ISNS_FLAG_FIRST_PDU))
+           return ERROR;
+
+        /* got all fragments, copy back into msg buffer */
+        memcpy((char *)&md, (char *)&frag_md,
+               frag_len + sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
+        md.msg.hdr.msg_len = frag_len;
+
+        /* clear all frag variables */
+        memset((char *)&frag_md, 0,
+               frag_len + sizeof(SNS_Msg_Cb) + sizeof(SNS_Msg_Hdr));
+        awaiting_fragment = 0;
+        frag_len = 0;
+
+        if ((p_msg->hdr.version > SNS_VERSION) && (first_warn))
+        {
+           /*
+            * SNS_WARN(SNS_VERSION_WARN,
+            *          "version mismatch (current, new)\n",
+            *          SNS_VERSION, p_msg->hdr.version, 0);
+            */
+           __LOG_WARNING("NOTE: Newer version (v %d) of iSNS detected in the",
+                  p_msg->hdr.version);
+           __LOG_WARNING("network.  Current version is v %d.",
+                  (int)SNS_VERSION);
+           first_warn = FALSE;
+        }
+
+        md.cb.sender = ISNS_REMOTE;
+        if (SendIPCMessage(SNS_EP, (void *)&md, sizeof(SNS_Msg_Cb) +
+                           sizeof(SNS_Msg_Hdr) + p_msg->hdr.msg_len,
+                           IPC_MSG_PRI_HI) == ERROR)
+        {
+           __LOG_ERROR ("%s %d: Error forwarding fsm message (xid %d)",
+                      __FILE__, __LINE__, p_msg->hdr.xid);
+        }
+    }
+
+    return 0;
 }
 
-static void 
+static void
 SNS_SaveRecentMsg(ISNS_Msg_Descp *p_md)
 {
    static int index = 0;
@@ -255,7 +297,7 @@ SNS_SaveRecentMsg(ISNS_Msg_Descp *p_md)
       display_debug = (p_md->msg.hdr.type == sns_recv_msg_filter);
 
    __DEBUG (display_debug, "recv msg %d, len %d, xid %d from %s",
-            p_md->msg.hdr.type, p_md->msg.hdr.msg_len, 
+            p_md->msg.hdr.type, p_md->msg.hdr.msg_len,
             p_md->msg.hdr.xid, dot_not_addr);
 
    if ((display_debug == 0) ||
@@ -263,15 +305,12 @@ SNS_SaveRecentMsg(ISNS_Msg_Descp *p_md)
 
       return;
 
-#ifdef SNS_LINUX
    sns_recv_msg_array[index][0] = (long double)time ((time_t*) 0);
-#else
-   sns_recv_msg_array[index][0] = tickGet();
-#endif
 
-   sns_recv_msg_array[index][1] = 
+
+   sns_recv_msg_array[index][1] =
      (int)p_md->cb.sock.addr.sin_addr.s_addr;
-   memcpy(&sns_recv_msg_array[index][2], &p_md->msg, 
+   memcpy(&sns_recv_msg_array[index][2], &p_md->msg,
           ARRAY_WIDTH*sizeof(int));
    index++;
    index = index % ARRAY_DEPTH;

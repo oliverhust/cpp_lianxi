@@ -68,6 +68,14 @@ extern char  snsp_ip[16];
 extern char  snsp_bip[16];
 extern int   snsp_port;
 
+/* RESET操作消息结构体 */
+typedef struct tagISCSI_ISNS_EVENT_RESET_MSG
+{
+    ISCSI_THREAD_MSG_HEAD_S  stIsMsgHdr;      /* 公共消息报文头 */
+    USHORT                  usMtIndex;       /* 拓扑索引 */
+    UINT                    uiResetReason;   /* RESET具体原因，暂时不用*/
+}ISCSI_ISNS_EVENT_RESET_MSG_S;
+
 extern uint32_t
 SNSGetServerAddr(void);
 
@@ -110,6 +118,11 @@ SNSGetMgmtAddr(void);
 
 extern int
 SNSGetIPAddress(void);
+
+
+ULONG ISCSI_ISNS_ResetNotify(IN USHORT usMtIndex,
+                          IN ISCSI_RESET_NOTIFY_TYPE_E enNotifyType,
+                          IN ISCSI_RESET_TRIGGER_TYPE_E enResetReason);
 
 #endif
 

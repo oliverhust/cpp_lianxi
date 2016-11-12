@@ -1,35 +1,53 @@
 /**********************************************************************
   Copyright (c) 2001, Nishan Systems, Inc.
   All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without 
-  modification, are permitted provided that the following conditions are 
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
   met:
-  
-  - Redistributions of source code must retain the above copyright notice, 
-    this list of conditions and the following disclaimer. 
-  
-  - Redistributions in binary form must reproduce the above copyright 
-    notice, this list of conditions and the following disclaimer in the 
-    documentation and/or other materials provided with the distribution. 
-  
-  - Neither the name of the Nishan Systems, Inc. nor the names of its 
-    contributors may be used to endorse or promote products derived from 
-    this software without specific prior written permission. 
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A 
-  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC. 
-  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
-  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
-  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+
+  - Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+  - Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+  - Neither the name of the Nishan Systems, Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NISHAN SYSTEMS, INC.
+  OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
+
 ***********************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/basetype.h>
+#include <sys/error.h>
+#include <sys/assert.h>
+#include <sys/list.h>
+#include <sys/epoll.h>
+#include <sys/in.h>
+
+
+#include "../../include/iscsi_basetype.h"
+#include "../../include/iscsi_com.h"
+#include "../../include/iscsi_main.h"
+#include "../../include/iscsi_event.h"
+#include "../../include/iscsi_util.h"
 
 
 #include "iSNStypes.h"
@@ -49,7 +67,7 @@ static char *p_name = "Port Name";
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplayMsg (ISNS_Msg *msg)
 {
 #if 0
@@ -62,10 +80,10 @@ ISNSDisplayMsg (ISNS_Msg *msg)
      */
     msg_type         = msg->hdr.type;
 
-    switch (msg_type) 
+    switch (msg_type)
     {
-        case DEREG_DEVI_REQ: 
-        {     
+        case DEREG_DEVI_REQ:
+        {
             __LOG_INFO ("\n ********** DEREGISTRATION MESSAGE *************** \n");
             ISNSDisplay_Hdr_Info(msg);
 
@@ -76,7 +94,7 @@ ISNSDisplayMsg (ISNS_Msg *msg)
         }
         break;
 
-        default: 
+        default:
             __LOG_INFO ("\nReceived an unknown message.\n");
         break;
     }
@@ -85,7 +103,7 @@ ISNSDisplayMsg (ISNS_Msg *msg)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Hdr_Info(ISNS_Msg *msg)
 {
     __LOG_INFO ("HEADER \n");
@@ -111,7 +129,7 @@ ISNSDisplay_DbData(ISNS_Key *p_key, SOIP_DB_Entry *p_entry, int detail)
 
     if (p_key->next)
     {
-       __LOG_INFO ("*************** PORT LIST RECORD **************\n"); 
+       __LOG_INFO ("*************** PORT LIST RECORD **************\n");
        SNSDisplay_PortList (&p_entry->data.port_list);
        __LOG_INFO ("***********************************************\n");
        return;
@@ -145,7 +163,7 @@ ISNSDisplay_DbData(ISNS_Key *p_key, SOIP_DB_Entry *p_entry, int detail)
         case PORT_TYPE_KEY:
         case FC4_TYPE_KEY:
         case AREA_ID_KEY:
-             __LOG_INFO ("*************** PORT LIST RECORD **************\n"); 
+             __LOG_INFO ("*************** PORT LIST RECORD **************\n");
              SNSDisplay_PortList (&p_entry->data.port_list);
              __LOG_INFO ("***********************************************\n");
              break;
@@ -167,7 +185,7 @@ ISNSDisplay_DbData(ISNS_Key *p_key, SOIP_DB_Entry *p_entry, int detail)
              break;
 #endif
         default:
-            __LOG_INFO("\nUnknown table entry (data_type %d)\n", 
+            __LOG_INFO("\nUnknown table entry (data_type %d)\n",
                    p_entry->data_type);
             break;
     }
@@ -175,7 +193,7 @@ ISNSDisplay_DbData(ISNS_Key *p_key, SOIP_DB_Entry *p_entry, int detail)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_Name ( SOIP_Port_Name *p_port, char *p_name )
 {
     int indx;
@@ -183,23 +201,23 @@ ISNSDisplay_Port_Name ( SOIP_Port_Name *p_port, char *p_name )
     if (p_port != NULL)
     {
         __LOG_INFO ("%-19s : ", p_name);
-        for (indx = 0; indx <  PORT_NAME_SIZE; indx++) 
+        for (indx = 0; indx <  PORT_NAME_SIZE; indx++)
             __LOG_INFO ("%02x", p_port->v[indx]);
-        __LOG_INFO ("\n"); 
+        __LOG_INFO ("\n");
     }
 }
 
 /********************************************************************
 ********************************************************************/
-void  
+void
 ISNSDisplay_Node_Name ( SOIP_Node_Name *p_node )
 {
     int indx;
 
     __LOG_INFO ("Node Name           : ");
-    for (indx = 0; indx < ISNS_NODE_NAME_SIZE; indx++) 
+    for (indx = 0; indx < ISNS_NODE_NAME_SIZE; indx++)
         __LOG_INFO ("%02x", p_node->v[indx]);
-    __LOG_INFO ("\n"); 
+    __LOG_INFO ("\n");
 }
 
 /********************************************************************
@@ -214,14 +232,14 @@ ISNSDisplay_Port_Id ( SOIP_Port_Id *p_id )
        return;
 
     __LOG_INFO ("Port Id             : ");
-    for (indx = 0; indx <  PORT_ID_SIZE; indx++) 
+    for (indx = 0; indx <  PORT_ID_SIZE; indx++)
         __LOG_INFO ("%02X", p_id->v[indx]);
-    __LOG_INFO ("\n"); 
+    __LOG_INFO ("\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_IPAddress ( IP_Address *ip_addr )
 {
     char              ip_saddr[INET_ADDR_LEN+1];
@@ -232,23 +250,23 @@ ISNSDisplay_IPAddress ( IP_Address *ip_addr )
 
     inet_ntoa_b (i_addr, ip_saddr);
     ip_saddr[INET_ADDR_LEN] = '\0';
-    __LOG_INFO ("IP Address          : %s     \n", ip_saddr); 
+    __LOG_INFO ("IP Address          : %s     \n", ip_saddr);
 }
 
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port ( SOIP_Ifcp *p_port )
 {
     int      ii;
     SOIP_COS unreg_cos;
 
-    __LOG_INFO ("******************** PORT RECORD **************\n"); 
+    __LOG_INFO ("******************** PORT RECORD **************\n");
     ISNSDisplay_Port_Name (&p_port->port_name, p_name);
     ISNSDisplay_Port_Name (&p_port->fabric_port_name, "Fabric Port");
 
-    __LOG_INFO ("Symbolic Port Name  : %s      \n",  p_port->sym_name); 
+    __LOG_INFO ("Symbolic Port Name  : %s      \n",  p_port->sym_name);
 
     ISNSDisplay_Node_Name (&p_port->node_name);
 
@@ -259,44 +277,44 @@ ISNSDisplay_Port ( SOIP_Ifcp *p_port )
     ISNSDisplay_Port_Id (&p_port->id);
 
     if (p_port->type != SNS_UNREGISTERED)
-        __LOG_INFO ("Port Type           : %d     \n", p_port->type); 
+        __LOG_INFO ("Port Type           : %d     \n", p_port->type);
 
     for (ii = 0; ii < 32; ii++)
         if (p_port->fc4_types.bitmap[ii])
-           __LOG_INFO ("FC-4 Types          : 0x%2x [%d] \n", 
+           __LOG_INFO ("FC-4 Types          : 0x%2x [%d] \n",
                    p_port->fc4_types.bitmap[ii], ii);
 
     memset(&unreg_cos, SNS_UNREGISTERED, sizeof(SOIP_COS));
     if (memcmp(&p_port->cos, &unreg_cos, sizeof(SOIP_COS)) != 0)
         __LOG_INFO ("Port COS            : %08X \n", (unsigned int)p_port->cos);
 
-    __LOG_INFO ("Port priority       : %d \n", p_port->priority); 
+    __LOG_INFO ("Port priority       : %d \n", p_port->priority);
 
     for (ii = 0; ii < ZONE_BITMAP_SIZE; ii++)
         if (p_port->zone_bitmap[ii])
-           __LOG_INFO ("Zone bitmap         : 0x%2x [%d] \n", 
+           __LOG_INFO ("Zone bitmap         : 0x%2x [%d] \n",
                    p_port->zone_bitmap[ii], ii);
 
-    __LOG_INFO ("Remote flag         : %d \n", p_port->remote); 
-    __LOG_INFO ("Device type         : %0lx \n", *(long *)&p_port->dev_type); 
+    __LOG_INFO ("Remote flag         : %d \n", p_port->remote);
+    __LOG_INFO ("Device type         : %0lx \n", *(long *)&p_port->dev_type);
 
-    __LOG_INFO ("\n***********************************************\n"); 
+    __LOG_INFO ("\n***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Node ( SOIP_Node *p_node )
 {
     int ii;
 
-    __LOG_INFO ("******************** NODE RECORD **************\n"); 
+    __LOG_INFO ("******************** NODE RECORD **************\n");
     ISNSDisplay_Node_Name (&p_node->node_name);
 
     for (ii = 0; ii < NODE_SYM_NAME_SIZE; ii++)
        if (p_node->sym_name[ii] == (char)SNS_UNREGISTERED)
           p_node->sym_name[ii] = '\0';
-    __LOG_INFO ("Symbolic Node Name  : %s      \n",  p_node->sym_name); 
+    __LOG_INFO ("Symbolic Node Name  : %s      \n",  p_node->sym_name);
 
     ISNSDisplay_NodeIPA (&p_node->node_ipa);
 
@@ -307,22 +325,22 @@ ISNSDisplay_Node ( SOIP_Node *p_node )
        if (p_node->port_map & (1 << ii))
           ISNSDisplay_Port_Name (&p_node->port_name[ii], p_name);
 
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_IPAddr (IP_Address *ip_addr)
 {
-    __LOG_INFO ("*************** IP ADDRESS RECORD *************\n"); 
+    __LOG_INFO ("*************** IP ADDRESS RECORD *************\n");
     ISNSDisplay_IPAddress (ip_addr);
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_List(SOIP_Port_List *p_list)
 {
     int ii;
@@ -339,27 +357,27 @@ ISNSDisplay_Port_List(SOIP_Port_List *p_list)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_TypeList (SOIP_Port_List *p_list)
 {
     __LOG_INFO ("******************* PORT TYPE RECORD **********\n");
     ISNSDisplay_Port_List(p_list);
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_FC4TypeList (SOIP_Port_List *p_list)
 {
     __LOG_INFO ("****************** FC4 LIST RECORD ************\n");
     ISNSDisplay_Port_List(p_list);
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_FC4Type (void *fc4_types, uint32_t attr_len)
 {
     uint8_t         i;
@@ -372,7 +390,7 @@ ISNSDisplay_FC4Type (void *fc4_types, uint32_t attr_len)
          * are enabled in the bit mask
          */
          for (i = 0, nptr = (uint32_t *)
-                                    ((FC4_Types *)fc4_types)->bitmap; 
+                                    ((FC4_Types *)fc4_types)->bitmap;
                                     i < 8; i++, nptr++)
          {
              if (nptr != NULL && *nptr != 0)
@@ -381,13 +399,13 @@ ISNSDisplay_FC4Type (void *fc4_types, uint32_t attr_len)
              }
          }
      }
-     else 
+     else
         __LOG_INFO ("FC4 Type           : 0x%x\n", *((uint8_t *)fc4_types));
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Zone_Tag (SOIP_Zone *p_zone)
 {
     int ii;
@@ -401,12 +419,12 @@ ISNSDisplay_Zone_Tag (SOIP_Zone *p_zone)
 
     ISNSDisplay_Port_List(&p_zone->plist);
 
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Zone_Priority (uint32_t *zone_priority)
 {
     __LOG_INFO ("Zone Priority  : 0x%-8x\n", *zone_priority);
@@ -415,7 +433,7 @@ ISNSDisplay_Zone_Priority (uint32_t *zone_priority)
 #if 0
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_RSCN_List (SOIP_RSCN_List *p_rscn)
 {
     uint32_t  ii;
@@ -430,13 +448,13 @@ ISNSDisplay_RSCN_List (SOIP_RSCN_List *p_rscn)
        ISNSDisplay_Port_Name (&rscn->pn, p_name);
        __LOG_INFO ("Callback Routine    : %08lX \n", (long) rscn->cfunc);
     }
-    __LOG_INFO ("***********************************************\n"); 
+    __LOG_INFO ("***********************************************\n");
 }
 #endif
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Zone (uint32_t *zone_tag)
 {
     __LOG_INFO ("Zone Tag            : %d \n", *zone_tag);
@@ -444,7 +462,7 @@ ISNSDisplay_Zone (uint32_t *zone_tag)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_HardAddr (SOIP_Hard_Addr *hard_addr)
 {
    int ii;
@@ -457,7 +475,7 @@ ISNSDisplay_HardAddr (SOIP_Hard_Addr *hard_addr)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_NodeIPA  (SOIP_Node_IPA *node_ipa)
 {
    int ii;
@@ -470,29 +488,29 @@ ISNSDisplay_NodeIPA  (SOIP_Node_IPA *node_ipa)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Node_SymName (char *sym_name)
 {
     if (sym_name && sym_name[0] != (char)SNS_UNREGISTERED)
-        __LOG_INFO ("Symbolic Node Name  : %s      \n",  sym_name); 
+        __LOG_INFO ("Symbolic Node Name  : %s      \n",  sym_name);
     else
-        __LOG_INFO ("Symbolic Node Name  : \n" ); 
+        __LOG_INFO ("Symbolic Node Name  : \n" );
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_SymName (char *sym_name)
 {
     if (sym_name && sym_name[0] != (char)SNS_UNREGISTERED)
-        __LOG_INFO ("Symbolic Port Name  : %s      \n",  sym_name); 
+        __LOG_INFO ("Symbolic Port Name  : %s      \n",  sym_name);
     else
-        __LOG_INFO ("Symbolic Port Name  : \n" ); 
+        __LOG_INFO ("Symbolic Port Name  : \n" );
 }
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_Type (SOIP_Port_Type *p_type)
 {
     __LOG_INFO ("Port Type           : %d \n", *p_type);
@@ -500,7 +518,7 @@ ISNSDisplay_Port_Type (SOIP_Port_Type *p_type)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Port_Cos (SOIP_COS *p_cos)
 {
     __LOG_INFO ("PORT COS            : %08X   \n", *(unsigned int *)p_cos);
@@ -508,7 +526,7 @@ ISNSDisplay_Port_Cos (SOIP_COS *p_cos)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_Portal_Name(char *p_name)
 {
    char dot_no[INET_ADDR_LEN];
@@ -531,7 +549,7 @@ ISNSDisplay_Portal_Name(char *p_name)
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_DD( SOIP_Dd *p_dd, int level )
 {
    ISNS_LIST_NODE *pnode;
@@ -581,7 +599,7 @@ ISNSDisplay_DD( SOIP_Dd *p_dd, int level )
 
 /********************************************************************
 ********************************************************************/
-void 
+void
 ISNSDisplay_DDS( SOIP_Dds *p_dds, int level )
 {
    ISNS_LIST_NODE *pnode;
@@ -595,7 +613,7 @@ ISNSDisplay_DDS( SOIP_Dds *p_dds, int level )
        __LOG_INFO("*************** DDS Entry ***************\n");
        __LOG_INFO("DDS ID         : %u\n",       p_dds->id);
        __LOG_INFO("DDS SYM NAME   : %s\n",        p_dds->sym_name);
-       __LOG_INFO("DDS STATUS     : %#x (%s)\n", p_dds->status, 
+       __LOG_INFO("DDS STATUS     : %#x (%s)\n", p_dds->status,
           (p_dds->status & 0x1)?"Enabled":"Disabled");
        __LOG_INFO("DDS DD: ");
        pnode = NULL;
@@ -611,7 +629,7 @@ ISNSDisplay_DDS( SOIP_Dds *p_dds, int level )
 
 /********************************************************************
 ********************************************************************/
-static void 
+static void
 SNSDisplay_Field ( char *p_field_name, char *p_field, int len )
 {
     int indx;
@@ -619,9 +637,9 @@ SNSDisplay_Field ( char *p_field_name, char *p_field, int len )
     if (p_field != NULL)
     {
         __LOG_INFO ("%-19s : ", p_field_name);
-        for (indx = 0; indx <  len; indx++) 
+        for (indx = 0; indx <  len; indx++)
             __LOG_INFO ("%2.2x", *(unsigned char *)&p_field[ indx ]);
-        __LOG_INFO ("\n"); 
+        __LOG_INFO ("\n");
     }
 }
 
@@ -630,7 +648,7 @@ SNSDisplay_Field ( char *p_field_name, char *p_field, int len )
 void ISNSDisplay_iFCPNode ( SOIP_Ifcp *p_node )
 {
     int ii;
-    __LOG_INFO ("************* iFCP NODE RECORD **************\n"); 
+    __LOG_INFO ("************* iFCP NODE RECORD **************\n");
     SNSDisplay_Field ("Port Name", (char *)&p_node->port_name, ISNS_PORT_NAME_SIZE);
     SNSDisplay_Field ("Node Name", (char *)&p_node->node_name, ISNS_NODE_NAME_SIZE);
     __LOG_INFO ("Port Type           : %#x     \n", p_node->type);
@@ -643,10 +661,10 @@ void ISNSDisplay_iFCPNode ( SOIP_Ifcp *p_node )
 
     for (ii = 0; ii < 32; ii++)
         if (p_node->fc4_types.bitmap[ii])
-           __LOG_INFO ("FC-4 Types          : 0x%2x [%d] \n", 
+           __LOG_INFO ("FC-4 Types          : 0x%2x [%d] \n",
                    p_node->fc4_types.bitmap[ii], ii);
 
-    __LOG_INFO ("**********************************************\n"); 
+    __LOG_INFO ("**********************************************\n");
 }
 
 /********************************************************************
@@ -655,7 +673,7 @@ void ISNSDisplay_FCNode ( SOIP_Fc_Node *p_node )
 {
     ISNS_LIST_NODE *pnode;
 
-    __LOG_INFO ("************* FC NODE RECORD **************\n"); 
+    __LOG_INFO ("************* FC NODE RECORD **************\n");
     SNSDisplay_Field ("Node Name", (char *)&p_node->node_name, ISNS_NODE_NAME_SIZE);
     __LOG_INFO ("Symbolic Name      : %s      \n",  p_node->sym_name);
     ISNSDisplay_IPAddress (&p_node->ip_addr);
@@ -666,7 +684,7 @@ void ISNSDisplay_FCNode ( SOIP_Fc_Node *p_node )
     {
           SNSDisplay_Field ("Port Name", (char *)GetNodeData(pnode), ISNS_PORT_NAME_SIZE);
     }
-    __LOG_INFO ("*********************************************\n"); 
+    __LOG_INFO ("*********************************************\n");
 }
 
 /********************************************************************
@@ -677,13 +695,13 @@ void ISNSDisplay_ISCSINode ( SOIP_Iscsi *p_node, int level )
     {
        __LOG_INFO(" %s, %s, %#08x, %s, %08x, %u, %u, %s\n",
               p_node->id.v, p_node->entity_id.id, p_node->type,
-              p_node->alias, p_node->scn_bitmap, 
+              p_node->alias, p_node->scn_bitmap,
               p_node->iscsi_index, p_node->entity_index,
               p_node->activeFlag?"Active":"Not Active");
     }
     else
     {
-       __LOG_INFO ("************* iSCSI NODE RECORD **************\n"); 
+       __LOG_INFO ("************* iSCSI NODE RECORD **************\n");
        __LOG_INFO ("Index              : %u\n", p_node->iscsi_index);
        __LOG_INFO ("iSCSI Name         : %s      \n", p_node->id.v);
        __LOG_INFO ("Node Type          : %#08x  \n", p_node->type);
@@ -691,7 +709,7 @@ void ISNSDisplay_ISCSINode ( SOIP_Iscsi *p_node, int level )
        __LOG_INFO ("Entity ID          : %s      \n", p_node->entity_id.id);
        __LOG_INFO ("Entity Index       : %u\n", p_node->entity_index);
        __LOG_INFO ("DD Enabled         : %s      \n", p_node->activeFlag ? "Yes" : "No ");
-       __LOG_INFO ("*********************************************\n"); 
+       __LOG_INFO ("*********************************************\n");
     }
 }
 
@@ -703,16 +721,16 @@ void ISNSDisplay_Entity ( SOIP_Entity *p_entity, int level )
 
     if ( level == LO_DETAIL )
     {
-       __LOG_INFO( "%s, %#08x, %u\n", p_entity->eid.id, 
+       __LOG_INFO( "%s, %#08x, %u\n", p_entity->eid.id,
                p_entity->eid_type, p_entity->entity_index );
     }
     else
     {
-       __LOG_INFO ("******************** ENTITY RECORD **************\n"); 
+       __LOG_INFO ("******************** ENTITY RECORD **************\n");
        __LOG_INFO ("INDEX           : %#x\n",   p_entity->entity_index);
        __LOG_INFO ("ID              : %s\n",   p_entity->eid.id);
        __LOG_INFO ("Type            : %d\n",   p_entity->eid_type);
-       __LOG_INFO ("Prot Ver Max/Min: %d/%d\n", 
+       __LOG_INFO ("Prot Ver Max/Min: %d/%d\n",
                 p_entity->prot_ver.ver_max, p_entity->prot_ver.ver_min);
        __LOG_INFO ("Reg Period      : %d\n",   p_entity->period);
        //ISNSDisplay_IPAddress ((struct IP_address *)p_entity->mgmt_ip_addr.v);
@@ -758,13 +776,13 @@ ISNSDisplay_Portal(SOIP_Portal *p_portal, int level)
    /* Assumes a IPv4 Address */
    if (level == LO_DETAIL)
    {
-       __LOG_INFO( " %s %#08x,%u\n", 
+       __LOG_INFO( " %s %#08x,%u\n",
               inet_ntoa(*(struct in_addr *)(p_portal->ip_addr.v+12)),
               p_portal->ip_port, p_portal->portal_index);
    }
    else
    {
-       __LOG_INFO("******************** Portal Record **************\n"); 
+       __LOG_INFO("******************** Portal Record **************\n");
        __LOG_INFO("INDEX           : %u\n",      p_portal->portal_index);
        __LOG_INFO("IP              : %s\n",       inet_ntoa(*(struct in_addr *)(p_portal->ip_addr.v+12)));
        __LOG_INFO("PORT            : %#x\n",     p_portal->ip_port);
@@ -964,8 +982,8 @@ ParsePDU (char *buffer)
    uint16_t     pdufunc;
    uint16_t     pdulen;
    uint16_t     pduflags;
-   uint32_t     attrtag; 
-   uint32_t     attrlen; 
+   uint32_t     attrtag;
+   uint32_t     attrlen;
    int          i=0;
    int          *valword;
 
@@ -1159,13 +1177,13 @@ ParsePDU (char *buffer)
 }
 
 /*********************************************************************
-*  print log message to console or system log 
+*  print log message to console or system log
 **********************************************************************/
 void
 isns_log(int level, char *format, ...)
 {
   va_list ptr;
-  
+
   va_start(ptr,format);
   if (daemon_state == TRUE)
   {
@@ -1212,7 +1230,7 @@ isns_copy(void *dst, int dst_size, void *src, int src_size)
      __LOG_ERROR ("source ptr is NULL");
      return ERROR;
    }
-   
+
    if ( dst_size < src_size )
    {
      __LOG_ERROR ("destination size:%i is smaller than source:%i - setting dst_size=src_size",dst_size,src_size);
@@ -1221,6 +1239,6 @@ isns_copy(void *dst, int dst_size, void *src, int src_size)
    }
    memset (dst,0,dst_size);
    memcpy (dst,src,cp_size);
-   
+
    return rc;
 }

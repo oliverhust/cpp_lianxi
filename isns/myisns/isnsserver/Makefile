@@ -36,8 +36,11 @@ sbindir = $(exec_prefix)/usr/sbin
 PROGRAMS = isnssd
 
 CC = gcc -g
-SRCDIR = ./src/
+SRCDIR = ./iscsi/app/isns/
+STUBDIR = ./stub/
 INCDIR = ./include/
+INCDIR += -I$(SRCDIR)
+INCDIR += -I./include/etc/
 INCDIR += -I/usr/include/
 
 OBJECTS = 
@@ -73,6 +76,9 @@ OBJECTS += iSNSdbLdap.o
 OBJECTS += iSNSLdapLib.o
 OBJECTS += iSNSEpoll.o
 OBJECTS += iSNSevent.o
+OBJECTS += iSNSreset.o
+OBJECTS += ut_iscsi.o
+OBJECTS += stub.o
 
 #OPTFLAGS ?= -g -O2
 OPTFLAGS ?= -g
@@ -88,10 +94,11 @@ all : $(PROGRAMS)
 
 isnsd: $(OBJECTS)
 	$(CC) $^ -o $@ $(LIBS)
-	rm $(OBJECTS)
+	rm -f $(OBJECTS)
 	
 iSNSMain.o : $(SRCDIR)iSNSMain.c 
 	dos2unix $(SRCDIR)*.c
+	rm -f $(OBJECTS)
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 
 iSNScomm.o : $(SRCDIR)iSNScomm.c 
@@ -186,6 +193,15 @@ iSNSEpoll.o : $(SRCDIR)iSNSEpoll.c
 
 iSNSevent.o : $(SRCDIR)iSNSevent.c
 	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+iSNSreset.o : $(SRCDIR)iSNSreset.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+ut_iscsi.o : $(STUBDIR)ut_iscsi.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
+
+stub.o : $(STUBDIR)stub.c
+	$(CC) -I$(INCDIR) $(CFLAGS) -c $< -o $@
 	
 ut : 
 	dos2unix $(SRCDIR)NdbTest.c
@@ -195,29 +211,3 @@ clean :
 	rm $(OBJECTS) isnsd || :
 	dos2unix $(SRCDIR)*.c
 
-install: install_programs install_initd
-
-install_programs: $(PROGRAMS)
-	$(INSTALL) -d $(DESTDIR)$(sbindir)
-	$(INSTALL) -m 755 $^ $(DESTDIR)$(sbindir)
-
-install_initd:
-	if [ -f /etc/SuSE-release ]; then \
-		$(MAKE) install_initd_suse ; \
-	elif [-f /etc/debian_version ]; then \
-		$(MAKE) install_initd_debian ; \
-	elif [-f /etc/redhat_version ]; then \
-		$(MAKE) install_initd_redhat ; \
-        fi
-
-install_initd_debian:
-	$(INSTALL) -d $(DESTDIR)$(initddir) 
-	$(INSTALL) -m 755 etc/initd.debian $(DESTDIR)$(initddir)/isns
-
-install_initd_suse:
-	$(INSTALL) -d $(DESTDIR)$(initddir) 
-	$(INSTALL) -m 755 etc/initd.suse $(DESTDIR)$(initddir)/isns
-
-install_initd_redhat:
-	$(INSTALL) -d $(DESTDIR)$(initddir) 
-	$(INSTALL) -m 755 etc/initd.suse $(DESTDIR)$(initddir)/isns

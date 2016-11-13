@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-
 #ifdef _UT_
 #ifdef STATIC
 #undef STATIC
@@ -135,6 +134,10 @@ typedef USHORT  BOOL_T;
 #define ZONE_ID USHORT
 #endif
 
+#ifndef ISSU
+#define ISSU
+#endif
+
 //typedef void * LPVOID;
 
 typedef unsigned long long __attribute__((aligned(8)))  UINT64;
@@ -171,6 +174,9 @@ typedef long long __attribute__((aligned(8)))           INT64;
 #define MAC_ADDR_LEN 6
 
 #define  IGNORE_PARAM(x)     ((x) = (x))
+
+#define scnprintf snprintf
+#define strlcpy strncpy
 
 #ifndef __KERNEL__
 #define likely(x)    __builtin_expect(!!(x), 1)
@@ -247,7 +253,14 @@ typedef long long __attribute__((aligned(8)))           INT64;
 #include <byteswap.h>                  /* LIBC Ã·π© */
 #endif
 #if (__BYTE_ORDER == __LITTLE_ENDIAN)
-#include <arpa/inet.h>
+
+#define __LITTLE_ENDIAN_BITFIELD
+
+UINT32 htonl(UINT32 hostlong);
+UINT16 htons(UINT16 hostshort);
+UINT32 ntohl(UINT32 netlong);
+UINT16 ntohs(UINT16 netshort);
+
 /*
 #define ntohs(x)  __bswap_16 (x)
 #define htons(x)  __bswap_16 (x)
@@ -368,6 +381,8 @@ typedef struct tagMACAddr
 #ifdef __KERNEL__
 typedef ULONG SESSION_HANDLE;
 #endif
+
+#include <epoll_ut.h>
 
 #ifdef  __cplusplus
 }

@@ -40,6 +40,7 @@
 typedef struct _list_node
 {
     DTQ_NODE_S stNode;
+    uint32_t list_id;
     void *data;
     uint32_t data_size;
 } ISNS_LIST_NODE;

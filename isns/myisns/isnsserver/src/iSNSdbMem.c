@@ -33,7 +33,7 @@
 #include "iSNSdbMem.h"
 #include "iSNSMemData.h"
 
-#define ISNS_MEM_LIST_GLOBAL_NUM             16
+#define ISNS_MEM_LIST_GLOBAL_NUM        4
 
 typedef enum
 {
@@ -50,6 +50,12 @@ typedef struct tagIsnsMemStruct
     UINT uiOffset;
     UINT uiSize;
 }ISNS_MEM_STRUCT_S;
+
+typedef struct tagIsnsMemListInfo
+{
+    UINT uiOffset;
+    ISNS_Database_Key enParent;
+}ISNS_MEM_LIST_INFO_S;
 
 /* KEY类型，相对于ISNS_DBKey的位置，(最大)大小 */
 STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemKey[ISNS_DATABASE_MAX] =
@@ -80,24 +86,21 @@ STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemValue[ISNS_DATABASE_MAX] =
 };
 
 /* 十字链的位置信息 */
-STATIC const UINT g_auiIsnsListOffset[DATA_LIST_MAX] =
+STATIC const ISNS_MEM_LIST_INFO_S g_auiIsnsListOffset[DATA_LIST_MAX] =
 {
-    [ISCSI_DD_LIST] = offsetof(SOIP_Iscsi, dd_id_list),
-    [ENTITY_PORTAL_LIST] = offsetof(SOIP_Entity, iportal_list),
-    [ENTITY_ISCSI_LIST] = offsetof(SOIP_Entity, iscsi_node_list),
-    [DD_MEMBER_LIST] = offsetof(SOIP_Dd, member_list),
-    [DD_DDS_LIST] = offsetof(SOIP_Dd, dds_list),
-    [DDS_DD_LIST] = offsetof(SOIP_Dds, dd_list),
+    [ISCSI_DD_LIST] = {offsetof(SOIP_Iscsi, dd_id_list), ISCSI_ID_KEY},
+    [ENTITY_PORTAL_LIST] = {offsetof(SOIP_Entity, iportal_list), ENTITY_ID_KEY},
+    [ENTITY_ISCSI_LIST] = {offsetof(SOIP_Entity, iscsi_node_list), ENTITY_ID_KEY},
+    [DD_MEMBER_LIST] = {offsetof(SOIP_Dd, member_list), DD_ID_KEY},
+    [DD_DDS_LIST] = {offsetof(SOIP_Dd, dds_list), DD_ID_KEY},
+    [DDS_DD_LIST] = {offsetof(SOIP_Dds, dd_list), DDS_ID_KEY},
 
-    [SCN_CALLBACK_LIST] = 0,
-    [SCN_LIST] = 0,
+    [SCN_CALLBACK_LIST] = { 0 },
+    [SCN_LIST] = { 0 },
 };
 
 int isns_list_debug = 0;
-STATIC UINT32 g_uiIsnsMemNumTmp = 0;
 
-STATIC UINT g_uiMemListGlobalCurr = 0;
-STATIC VOID *g_astMemListGlobal[ISNS_MEM_LIST_GLOBAL_NUM] = { 0 } ;
 
 /*********************************************************************
      Func Name : _isns_FormatByKey
@@ -114,7 +117,7 @@ STATIC VOID *g_astMemListGlobal[ISNS_MEM_LIST_GLOBAL_NUM] = { 0 } ;
 ----------------------------------------------------------------------
 
 *********************************************************************/
-STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutKey)
+STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutKey, OUT UINT32 *puiTmp)
 {
     const ISNS_MEM_STRUCT_S *pstMem;
     datum stKey = { 0 };
@@ -123,6 +126,12 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
     {
         *pstOutKey = stKey;
         return ERROR_SUCCESS;
+    }
+
+    if(pstDbKey->tag >= ISNS_DATABASE_MAX)
+    {
+        *pstOutKey = stKey;
+        return ERROR_FAILED;
     }
 
     pstMem = &g_astIsnsMemKey[pstDbKey->tag];
@@ -140,8 +149,8 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
     }
     else if(ISNS_MEM_NUM == pstMem->enType && sizeof(UINT32) ==  pstMem->uiSize)
     {
-        g_uiIsnsMemNumTmp = htonl(*(UINT32 *)(UCHAR *)stKey.dptr);
-        stKey.dptr = (CHAR *)&g_uiIsnsMemNumTmp;
+        *puiTmp = htonl(*(UINT32 *)(UCHAR *)stKey.dptr);
+        stKey.dptr = (CHAR *)puiTmp;
     }
 
     *pstOutKey = stKey;
@@ -165,13 +174,13 @@ STATIC ULONG _isns_FormatByKey(IN const ISNS_DBKey *pstDbKey, OUT datum *pstOutK
 
 *********************************************************************/
 STATIC ULONG _isns_FormatByKeyValue(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry,
-                                    OUT datum *pstOutKey,  OUT datum *pstOutValue)
+                                    OUT datum *pstOutKey,  OUT datum *pstOutValue, OUT UINT32 *puiTmp)
 {
     const ISNS_MEM_STRUCT_S *pstMem;
     ULONG ulRet = ERROR_SUCCESS;
     datum stValue = { 0 };
 
-    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, pstOutKey))
+    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, pstOutKey, puiTmp))
     {
         *pstOutValue = stValue;
         return ERROR_FAILED;
@@ -208,6 +217,11 @@ STATIC ULONG _isns_Key2DbKey(IN UINT uiType, IN datum stKey, OUT ISNS_DBKey *pst
 
     memset(pstDbKey, 0, sizeof(ISNS_DBKey));
     pstDbKey->tag = uiType;
+
+    if(uiType >= ISNS_DATABASE_MAX)
+    {
+        return ERROR_FAILED;
+    }
 
     pstMem = &g_astIsnsMemKey[uiType];
     if(pstMem->enType <= ISNS_MEM_INVALID || pstMem->enType >= ISNS_MEM_TYPE_MAX)
@@ -274,6 +288,53 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
 }
 
 /*********************************************************************
+     Func Name : _isns_FreeMemListHead
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 释放十字链表头
+         Input : IN const ISNS_DBKey *pstDbKey
+        Output :
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC VOID _isns_FreeMemListHead(IN const ISNS_DBKey *pstDbKey)
+{
+    SOIP_DB_Entry stEntry;
+    ISNS_LIST *pstList;
+    CHAR *pcParent;
+    UINT uiI;
+
+    for(uiI = 0; uiI < DATA_LIST_MAX; uiI++)
+    {
+        if(g_auiIsnsListOffset[uiI].enParent != pstDbKey->tag)
+        {
+            continue;
+        }
+
+        if(ERROR_SUCCESS != ISNS_MEM_Read(pstDbKey, &stEntry))
+        {
+            continue;
+        }
+
+        pcParent = (CHAR *)&stEntry + g_astIsnsMemValue[pstDbKey->tag].uiOffset;
+        pstList = (ISNS_LIST *)(pcParent + g_auiIsnsListOffset[uiI].uiOffset);
+        if(NULL != pstList->pstHead)
+        {
+            memset(pstList->pstHead, 0, sizeof(DTQ_HEAD_S));
+            free(pstList->pstHead);
+            pstList->pstHead = NULL;
+        }
+    }
+
+    return ;
+}
+
+/*********************************************************************
      Func Name : ISNS_MEM_Init
   Date Created : 2016/10/25
         Author : liangjinchao@dian
@@ -290,8 +351,6 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
 *********************************************************************/
 ULONG ISNS_MEM_Init(IN UINT uiMaxTypeCount)
 {
-    g_uiMemListGlobalCurr = 0;
-    memset(g_astMemListGlobal, 0, sizeof(g_astMemListGlobal));
     return ISNS_MEMDATA_Init(uiMaxTypeCount);
 }
 
@@ -333,8 +392,9 @@ VOID ISNS_MEM_Fini()
 INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEntry)
 {
     datum stKey, stValue;
+    UINT32 uiTmp;
 
-    if(ERROR_SUCCESS != _isns_FormatByKeyValue(pstDbKey, pstEntry, &stKey, &stValue))
+    if(ERROR_SUCCESS != _isns_FormatByKeyValue(pstDbKey, pstEntry, &stKey, &stValue, &uiTmp))
     {
         __LOG_ERROR ("When write -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
@@ -367,8 +427,11 @@ INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEnt
 INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
 {
     datum stKey;
+    UINT32 uiTmp;
 
-    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey))
+    _isns_FreeMemListHead(pstDbKey);
+
+    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
     {
         __LOG_ERROR ("When delete -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
@@ -397,8 +460,9 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
 INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
 {
     datum stKey, stValue;
+    UINT32 uiTmp;
 
-    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey))
+    if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
     {
         __LOG_ERROR ("When read -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
@@ -439,11 +503,12 @@ INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey)
 {
     datum stKey, stNextKey;
     UINT uiType = pstDbKey->tag;
+    UINT32 uiTmp;
 
     memset(&stKey, 0, sizeof(stKey));
     if(0 != pstDbKey->len)
     {
-        if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey))
+        if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
         {
             __LOG_ERROR ("When get next -- Undefined database tag: %i", uiType);
             return ISNS_UNKNOWN_ERR;
@@ -574,7 +639,7 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 
     if(DATA_LIST_INVALID < iListId && iListId < DATA_LIST_MAX)
     {
-        pstList = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId]);
+        pstList = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId].uiOffset);
     }
     else if(DATA_LIST_MAX < iListId && iListId < DATA_LIST_OLD_MAX)
     {
@@ -639,10 +704,6 @@ INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstList)
         free(pstNode);
     }
 
-    memset(pstList->pstHead, 0, sizeof(DTQ_HEAD_S));
-    free(pstList->pstHead);
-    pstList->pstHead = NULL;
-
     return (SUCCESS);
 }
 
@@ -668,7 +729,7 @@ VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList)
         __LOG_ERROR ("List_GetParent: Not init, listId=%d", pstList->list_id);
         return NULL;
     }
-    return (VOID *)((UCHAR *)pstList - g_auiIsnsListOffset[pstList->list_id]);
+    return (VOID *)((UCHAR *)pstList - g_auiIsnsListOffset[pstList->list_id].uiOffset);
 }
 
 /*********************************************************************
@@ -718,36 +779,40 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
 *********************************************************************/
 VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize)
 {
-    VOID **ppData;
+    STATIC VOID *apTmp[DATA_LIST_MAX][ISNS_MEM_LIST_GLOBAL_NUM] = { { 0 } };
+    STATIC UINT auiPos[DATA_LIST_MAX] = { 0 };
+    VOID *pData;
+    UINT uiPos;
 
-    __DEBUG (isns_list_debug &1, GetNodeData);
     if(NULL != piSize)
     {
         *piSize = pstNode->data_size;
     }
 
-    if(g_uiMemListGlobalCurr >= ISNS_MEM_LIST_GLOBAL_NUM)
+    if(pstNode->list_id >= DATA_LIST_MAX)
     {
         return NULL;
     }
 
-    ppData = &g_astMemListGlobal[g_uiMemListGlobalCurr];
-    if(NULL != *ppData)
+    uiPos = auiPos[pstNode->list_id];
+    pData = apTmp[pstNode->list_id][uiPos];
+    if(NULL != pData)
     {
-        free(*ppData);
-        *ppData = NULL;
+        free(pData);
+        apTmp[pstNode->list_id][uiPos] = NULL;
     }
 
-    *ppData = malloc(pstNode->data_size);
-    if(NULL == *ppData)
+    pData = malloc(pstNode->data_size);
+    if(NULL == pData)
     {
         return NULL;
     }
+    apTmp[pstNode->list_id][uiPos] = pData;
+    auiPos[pstNode->list_id] = (auiPos[pstNode->list_id] + 1) % ISNS_MEM_LIST_GLOBAL_NUM;
 
-    memcpy(*ppData, pstNode->data, pstNode->data_size);
-    g_uiMemListGlobalCurr = (g_uiMemListGlobalCurr + 1) % ISNS_MEM_LIST_GLOBAL_NUM;
+    memcpy(pData, pstNode->data, pstNode->data_size);
 
-    return *ppData;
+    return pData;
 }
 
 /*********************************************************************
@@ -826,6 +891,7 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSi
     }
 
     memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
+    pstNode->list_id = pstList->list_id;
     pstNode->data = (char *)malloc(iDataSize + 1);
     if(NULL == pstNode->data)
     {
@@ -888,15 +954,10 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *
 
     __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
 
-    if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX)
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
     {
         __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
         return NULL;
-    }
-    else if(NULL == pstList->pstHead || NULL == pstList->pstHead->stHead.pstNext ||
-            NULL == pstList->pstHead->stHead.pstPrev)
-    {
-        return NULL;     /* 空LIST */
     }
 
     if(NULL == pstNode)

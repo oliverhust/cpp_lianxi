@@ -241,6 +241,11 @@ ISNS_MEMD_HEAD_S *ISNS_MEMDATA_NewHead(IN UINT uiCount, IN const UINT *puiEachSu
     ISNS_MEMD_HEAD_S *pstHead;
     UINT uiI;
 
+    if(0 == uiCount)
+    {
+        return NULL;
+    }
+
     pstHead = (ISNS_MEMD_HEAD_S *)malloc(uiCount * sizeof(ISNS_MEMD_HEAD_S));
     if(NULL == pstHead)
     {
@@ -305,6 +310,7 @@ ULONG ISNS_MEMDATA_Write(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, IN dat
     DTQ_HEAD_S *pstHead;
     ISNS_MEMD_NODE_S *pstNode = NULL, *pstNewNode;
     INT iCmp = -1;
+    UINT uiI;
     ULONG ulRet = ERROR_SUCCESS;
 
     if(NULL == pstMHead)
@@ -324,9 +330,10 @@ ULONG ISNS_MEMDATA_Write(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, IN dat
 
     if(0 == iCmp)
     {
-        ulRet = _isns_MemCoverNode(stValue, &pstNode->stData.stValue);
+        return _isns_MemCoverNode(stValue, &pstNode->stData.stValue);
     }
-    else if(iCmp > 0)
+
+    if(iCmp > 0)
     {
         pstNewNode = _isns_MemNewNode(stKey, stValue);
         if(NULL == pstNewNode)
@@ -344,6 +351,8 @@ ULONG ISNS_MEMDATA_Write(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, IN dat
         }
         DTQ_AddTail(pstHead, &pstNewNode->stNode);
     }
+
+    pstNewNode->pstSubList = ISNS_MEMDATA_NewHead(pstMHead->uiSubListCount, NULL);
 
     return ulRet;
 }
@@ -597,18 +606,21 @@ ISNS_MEMD_HEAD_S *ISNS_MEMDATA_GetSubList(IN ISNS_MEMD_HEAD_S *pstMHead,
 
 ULONG DD_Add_Member(UINT uiDDId, SOIP_Dd_Member stMember)
 {
-    datum_s stDDKey, stMemberKey, stMemberValue = { 0 };
+    datum_s stDDKey, stMemberKey;
     ISNS_MEMD_HEAD_S *pstMemList;
 
     stDDKey = _isns_KeyFmt(DD_ID_KEY, (CHAR *)&uiDDId);
     pstMemList = ISNS_MEMDATA_GetSubList(g_apstHeads[DD_ID_KEY], stDDKey, 0);
     if(NULL == pstMemList)
     {
-        return ERROR_FAILED;
+        if(0 != ISNS_MEMDATA_Write(g_apstHeads[DD_ID_KEY], stDDKey, NULL))
+        {
+            return ERROR_FAILED;
+        }
     }
 
     stMemberKey = _isns_KeySubFmt(DD_MEMBER_LIST, &stMember);
-    if(0 != ISNS_MEMDATA_Write(pstMemList, stMemberKey, stMemberValue))
+    if(0 != ISNS_MEMDATA_Write(pstMemList, stMemberKey, NULL))
     {
         return -1;
     }

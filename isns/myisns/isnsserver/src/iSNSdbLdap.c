@@ -146,6 +146,9 @@ STATIC const CHAR * const * const g_appcAllAttrs[ISNS_LDAP_DIR_OBJ_MAX + 1] =
     [ISNS_LDAP_DIR_OBJ_MAX] = NULL
 };
 
+#define ISNS_LDAP_FMT_PORTAL_KEY        "IP=%s,Port=%d"
+#define ISNS_LDAP_FMT_PG                "IP=%s,Port=%d,Node=%s"
+
 
 /*********************************************************************
      Func Name : _ldap_IPAddr2Str
@@ -222,67 +225,14 @@ STATIC VOID _ldap_NKeyFmt(IN const IP_Address *pstIPAddr, IN UINT uiPort, IN con
 
     if(NULL != pcName && '\0' != pcName[0])
     {
-        scnprintf(pcOut, uiSize, "%s %d %s", szStrIP, uiPort, pcName);
+        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PG, szStrIP, uiPort, pcName);
     }
     else
     {
-        scnprintf(pcOut, uiSize, "%s %d", szStrIP, uiPort);
+        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PORTAL_KEY, szStrIP, uiPort);
     }
 
     return;
-}
-
-/*********************************************************************
-     Func Name : _ldap_NKeySpilt
-  Date Created : 2016/10/29
-        Author : liangjinchao@dian
-   Description : 一个值拆分成多个
-         Input : IN const CHAR *pcIn
-        Output : OUT IP_Address *pstIPAddr, OUT UINT *puiPort,
-                 OUT CHAR *pcName, IN UINT uiNameSize
-        Return : 成功/失败
-       Caution : 无
-----------------------------------------------------------------------
- Modification History
-    DATE        NAME             DESCRIPTION
-----------------------------------------------------------------------
-
-*********************************************************************/
-STATIC ULONG _ldap_NKeySpilt(IN const CHAR *pcIn,
-                             OUT IP_Address *pstIPAddr, OUT UINT *puiPort,
-                             OUT CHAR *pcName, IN UINT uiNameSize)
-{
-    CHAR szStrIP[ISNS_LDAP_IPADDR_SIZE] = { 0 };
-    CHAR *pcSrcName;
-
-    if(sscanf(pcIn, "%s %d", szStrIP, puiPort) != 2)
-    {
-        return ERROR_FAILED;
-    }
-
-    if(ERROR_SUCCESS != _ldap_Str2IPAddr(pcIn, pstIPAddr))
-    {
-        return ERROR_FAILED;
-    }
-
-    if(NULL != pcName)
-    {
-        pcSrcName = strchr(pcIn, ' ');
-        if(NULL == pcSrcName)
-        {
-            return ERROR_FAILED;
-        }
-        pcSrcName++;
-        pcSrcName = strchr(pcSrcName, ' ');
-        if(NULL == pcSrcName)
-        {
-            return ERROR_FAILED;
-        }
-        pcSrcName++;
-        strlcpy(pcName, pcSrcName, uiNameSize);
-    }
-
-    return ERROR_SUCCESS;
 }
 
 /*********************************************************************

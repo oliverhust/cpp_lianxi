@@ -32,52 +32,19 @@ typedef struct tagISNS_MemData
 {
     datum stKey;
     datum stValue;
-}ISNS_MEM_DATA_S;
+}ISNS_MEMD_DATA_S;
 
 typedef struct tagISNS_MemNode
 {
     DTQ_NODE_S stNode;
-    ISNS_MEM_DATA_S stData;
-}ISNS_MEM_NODE_S;
-
+    ISNS_MEMD_DATA_S stData;
+    ISNS_MEMD_HEAD_S *pstSubList; /* 子链头数组，NULL表示无 */
+}ISNS_MEMD_NODE_S;
 
 STATIC DTQ_HEAD_S *g_pstTable = NULL;
 STATIC UINT g_uiMaxTypeCount = 0;
 
 
-/*********************************************************************
-     Func Name : ISNS_MEMDATA_Init
-  Date Created : 2016/10/25
-        Author : liangjinchao@dian
-   Description : 初始化所有内存链表头
-         Input : UINT uiMaxTypeCount
-        Output : 无
-        Return : 成功/失败
-       Caution : 无
-----------------------------------------------------------------------
- Modification History
-    DATE        NAME             DESCRIPTION
-----------------------------------------------------------------------
-
-*********************************************************************/
-ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount)
-{
-    UINT uiI;
-
-    g_pstTable = (DTQ_HEAD_S *)malloc(uiMaxTypeCount * sizeof(DTQ_HEAD_S));
-    if(NULL == g_pstTable)
-    {
-        return ERROR_FAILED;
-    }
-
-    g_uiMaxTypeCount = uiMaxTypeCount;
-    for(uiI = 0; uiI < uiMaxTypeCount; uiI++)
-    {
-        DTQ_Init(g_pstTable + uiI);
-    }
-
-    return ERROR_SUCCESS;
-}
 
 /*********************************************************************
      Func Name : _isns_MemKeyCmp
@@ -95,7 +62,7 @@ ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-STATIC INT _isns_MemKeyCmp(IN datum stKey1, IN datum stKey2)
+STATIC INT _isns_MemKeyCmp(IN datum_s stKey1, IN datum_s stKey2)
 {
     INT iCmp;
 
@@ -124,6 +91,31 @@ STATIC INT _isns_MemKeyCmp(IN datum stKey1, IN datum stKey2)
 }
 
 /*********************************************************************
+     Func Name : _isns_Datum2s
+  Date Created : 2016/10/25
+        Author : liangjinchao@dian
+   Description : 类型转化
+         Input : IN datum stDatum
+        Output : 无
+        Return :
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC INLINE datum_s _isns_Datum2s(IN datum stDatum)
+{
+    datum_s stRet;
+
+    stRet.dptr = stDatum.dptr;
+    stRet.dsize = stDatum.dsize;
+
+    return stRet;
+}
+
+/*********************************************************************
      Func Name : _isns_MemCoverNode
   Date Created : 2016/10/25
         Author : liangjinchao@dian
@@ -138,7 +130,7 @@ STATIC INT _isns_MemKeyCmp(IN datum stKey1, IN datum stKey2)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-STATIC ULONG _isns_MemCoverNode(IN datum stInValue, OUT datum *pstOutValue)
+STATIC ULONG _isns_MemCoverNode(IN datum_s stInValue, OUT datum *pstOutValue)
 {
     CHAR *pcNewValue;
 
@@ -183,17 +175,17 @@ STATIC ULONG _isns_MemCoverNode(IN datum stInValue, OUT datum *pstOutValue)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
+STATIC ISNS_MEMD_NODE_S *_isns_MemNewNode(IN datum_s stKey, IN datum_s stValue)
 {
-    ISNS_MEM_NODE_S *pstNode;
+    ISNS_MEMD_NODE_S *pstNode;
     CHAR *pcNewKey, *pcNewValue;
 
-    pstNode = (ISNS_MEM_NODE_S *)malloc(sizeof(ISNS_MEM_NODE_S));
+    pstNode = (ISNS_MEMD_NODE_S *)malloc(sizeof(ISNS_MEMD_NODE_S));
     if(NULL == pstNode)
     {
         return pstNode;
     }
-    memset(pstNode, 0, sizeof(ISNS_MEM_NODE_S));
+    memset(pstNode, 0, sizeof(ISNS_MEMD_NODE_S));
 
     pcNewKey = (CHAR *)malloc(stKey.dsize);
     if(NULL == pcNewKey)
@@ -228,11 +220,56 @@ STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEMDATA_Write
-  Date Created : 2016/10/25
+     Func Name : ISNS_MEMDATA_NewHead
+  Date Created : 2016/11/14
         Author : liangjinchao@dian
-   Description : 某个链表上添加一个数据，如果存在则覆盖
-         Input : IN UINT uiType, IN datum stKey, IN datum stValue
+   Description : 创建N个连续的内存链表
+         Input : IN UINT uiCount,创建多少个链表
+                 IN const UINT *puiEachSubListCount:
+                  UINT数组，大小uiCount，对应每个链表的子链个数,null则全0
+        Output : 无
+        Return : 链表头数组
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ISNS_MEMD_HEAD_S *ISNS_MEMDATA_NewHead(IN UINT uiCount, IN const UINT *puiEachSubListCount)
+{
+    ISNS_MEMD_HEAD_S *pstHead;
+    UINT uiI;
+
+    pstHead = (ISNS_MEMD_HEAD_S *)malloc(uiCount * sizeof(ISNS_MEMD_HEAD_S));
+    if(NULL == pstHead)
+    {
+        return NULL;
+    }
+
+    memset(pstHead, 0, uiCount * sizeof(ISNS_MEMD_HEAD_S));
+    for(uiI = 0; uiI < uiCount; uiI++)
+    {
+        DTQ_Init(&pstHead[uiI].stHead);
+    }
+
+    if(NULL != puiEachSubListCount)
+    {
+        for(uiI = 0; uiI < uiCount; uiI++)
+        {
+            pstHead[uiI].uiSubListCount = puiEachSubListCount[uiI];
+        }
+    }
+
+    return pstHead;
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEMDATA_FreeHead
+  Date Created : 2016/11/14
+        Author : liangjinchao@dian
+   Description : 释放(连续的)内存链表头
+         Input : IN ISNS_MEMD_HEAD_S *pstHead
         Output : 无
         Return : 成功/失败
        Caution : 无
@@ -242,25 +279,43 @@ STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue)
+VOID ISNS_MEMDATA_FreeHead(IN ISNS_MEMD_HEAD_S *pstMHead)
+{
+    free(pstMHead);
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEMDATA_Write
+  Date Created : 2016/10/25
+        Author : liangjinchao@dian
+   Description : 某个链表上添加一个数据，如果存在则覆盖
+         Input : IN ISNS_MEMD_HEAD_S *pstMHead,
+                 IN datum stKey, IN datum stValue
+        Output : 无
+        Return : 成功/失败
+       Caution : 不会对子链进行任何操作
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ULONG ISNS_MEMDATA_Write(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, IN datum_s stValue)
 {
     DTQ_HEAD_S *pstHead;
-    ISNS_MEM_NODE_S *pstNode = NULL, *pstNewNode;
+    ISNS_MEMD_NODE_S *pstNode = NULL, *pstNewNode;
     INT iCmp = -1;
     ULONG ulRet = ERROR_SUCCESS;
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(NULL == pstMHead)
     {
         return ERROR_FAILED;
     }
+    pstHead = &pstMHead->stHead;
 
     DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
     {
-        iCmp = _isns_MemKeyCmp(pstNode->stData.stKey, stKey);
+        iCmp = _isns_MemKeyCmp(_isns_Datum2s(pstNode->stData.stKey), stKey);
         if(iCmp >= 0)
         {
             break;
@@ -308,27 +363,24 @@ ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey)
+datum_s ISNS_MEMDATA_Read(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey)
 {
     DTQ_HEAD_S *pstHead;
-    ISNS_MEM_NODE_S *pstNode = NULL;
-    datum stValue = { 0 };
+    ISNS_MEMD_NODE_S *pstNode = NULL;
+    datum_s stValue = { 0 };
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(NULL == pstMHead)
     {
         return stValue;
     }
+    pstHead = &pstMHead->stHead;
 
     DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
     {
         if(pstNode->stData.stKey.dsize == stKey.dsize &&
            0 == memcmp(pstNode->stData.stKey.dptr, stKey.dptr, stKey.dsize))
         {
-            stValue = pstNode->stData.stValue;
+            stValue = _isns_Datum2s(pstNode->stData.stValue);
             break;
         }
     }
@@ -344,27 +396,24 @@ datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey)
          Input : 无
         Output : 无
         Return : 成功/失败
-       Caution : 无
+       Caution : 不会对子链进行任何操作，外部自行先删除
 ----------------------------------------------------------------------
  Modification History
     DATE        NAME             DESCRIPTION
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey)
+ULONG ISNS_MEMDATA_Delete(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey)
 {
     DTQ_HEAD_S *pstHead;
-    ISNS_MEM_NODE_S *pstNode = NULL;
+    ISNS_MEMD_NODE_S *pstNode = NULL;
     ULONG ulRet = ERROR_NOT_FOUND;
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(NULL == pstMHead)
     {
         return ERROR_FAILED;
     }
+    pstHead = &pstMHead->stHead;
 
     DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
     {
@@ -406,26 +455,23 @@ ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextValue)
+datum_s ISNS_MEMDATA_GetNext(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, OUT datum_s *pstNextValue)
 {
     DTQ_HEAD_S *pstHead;
-    ISNS_MEM_NODE_S *pstNode = NULL;
-    datum stNextKey = { 0 };
+    ISNS_MEMD_NODE_S *pstNode = NULL;
+    datum_s stNextKey = { 0 };
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(NULL == pstMHead)
     {
         return stNextKey;
     }
+    pstHead = &pstMHead->stHead;
 
     if(NULL != stKey.dptr)
     {
         DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
         {
-            if(_isns_MemKeyCmp(pstNode->stData.stKey, stKey) > 0)
+            if(_isns_MemKeyCmp(_isns_Datum2s(pstNode->stData.stKey), stKey) > 0)
             {
                 break;
             }
@@ -433,12 +479,12 @@ datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextVal
     }
     else
     {
-        pstNode = DTQ_ENTRY_FIRST(pstHead, ISNS_MEM_NODE_S, stNode);
+        pstNode = DTQ_ENTRY_FIRST(pstHead, ISNS_MEMD_NODE_S, stNode);
     }
 
     if(NULL != pstNode)
     {
-        stNextKey = pstNode->stData.stKey;
+        stNextKey = _isns_Datum2s(pstNode->stData.stKey);
         if(NULL != pstNextValue)
         {
             *pstNextValue = pstNode->stData.stValue;
@@ -463,26 +509,26 @@ datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextVal
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
-                        OUT datum *pstNextKey, OUT datum *pstNextValue)
+ULONG ISNS_MEMDATA_Iter(IN ISNS_MEMD_HEAD_S *pstMHead, INOUT VOID **ppIter,
+                        OUT datum_s *pstNextKey, OUT datum_s *pstNextValue)
 {
     DTQ_HEAD_S *pstHead;
-    ISNS_MEM_NODE_S *pstIter, *pstNode = NULL;
+    ISNS_MEMD_NODE_S *pstIter, *pstNode = NULL;
 
-    if(uiType >= g_uiMaxTypeCount || NULL == ppIter)
+    if(NULL == pstMHead || NULL == ppIter)
     {
         return ERROR_FAILED;
     }
+    pstHead = &pstMHead->stHead;
 
     /* 如果入参指针指向的数据为空则从第一个开始取，否则去取一个 */
-    pstHead = g_pstTable + uiType;
     if(NULL == *ppIter)
     {
-        pstNode = DTQ_ENTRY_FIRST(pstHead, ISNS_MEM_NODE_S, stNode);
+        pstNode = DTQ_ENTRY_FIRST(pstHead, ISNS_MEMD_NODE_S, stNode);
     }
     else
     {
-        pstIter = (ISNS_MEM_NODE_S *)(*ppIter);
+        pstIter = (ISNS_MEMD_NODE_S *)(*ppIter);
         pstNode = DTQ_ENTRY_NEXT(pstHead, pstIter, stNode);
     }
 
@@ -504,4 +550,69 @@ ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
     return ERROR_SUCCESS;
 }
 
+/*********************************************************************
+     Func Name : ISNS_MEMDATA_Write
+  Date Created : 2016/10/25
+        Author : liangjinchao@dian
+   Description : 某个链表上添加一个数据，如果存在则覆盖
+         Input : IN ISNS_MEMD_HEAD_S *pstMHead,
+                 IN datum stKey, IN datum stValue
+        Output : 无
+        Return : 子链的链表头
+       Caution :
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ISNS_MEMD_HEAD_S *ISNS_MEMDATA_GetSubList(IN ISNS_MEMD_HEAD_S *pstMHead,
+                                          IN datum_s stNodeKey,
+                                          IN UINT uiSubListNo)
+{
+    ISNS_MEMD_NODE_S *pstNode = NULL;
+
+    if(NULL == pstMHead || uiSubListNo >= pstMHead->uiSubListCount)
+    {
+        return NULL;
+    }
+
+    DTQ_FOREACH_ENTRY(&pstMHead->stHead, pstNode, stNode)
+    {
+        if(pstNode->stData.stKey.dsize == stNodeKey.dsize &&
+           0 == memcmp(pstNode->stData.stKey.dptr, stNodeKey.dptr, stNodeKey.dsize))
+        {
+            break;
+        }
+    }
+
+    if(NULL == pstNode)
+    {
+        return NULL;
+    }
+
+    return &pstNode->pstSubList[uiSubListNo];
+}
+
+
+ULONG DD_Add_Member(UINT uiDDId, SOIP_Dd_Member stMember)
+{
+    datum_s stDDKey, stMemberKey, stMemberValue = { 0 };
+    ISNS_MEMD_HEAD_S *pstMemList;
+
+    stDDKey = _isns_KeyFmt(DD_ID_KEY, (CHAR *)&uiDDId);
+    pstMemList = ISNS_MEMDATA_GetSubList(g_apstHeads[DD_ID_KEY], stDDKey, 0);
+    if(NULL == pstMemList)
+    {
+        return ERROR_FAILED;
+    }
+
+    stMemberKey = _isns_KeySubFmt(DD_MEMBER_LIST, &stMember);
+    if(0 != ISNS_MEMDATA_Write(pstMemList, stMemberKey, stMemberValue))
+    {
+        return -1;
+    }
+
+
+}
 

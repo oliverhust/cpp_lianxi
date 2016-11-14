@@ -50,12 +50,21 @@
 #define NDB_SUCCESS                         0
 #define NDB_FAILED                          (-1)
 
-typedef struct {
+typedef struct
+{
     char  *dptr;
     int   dsize;
 } datum;
 
-typedef struct {
+/* 数据在传入/传出时不可修改/释放 */
+typedef struct
+{
+    const char  *dptr;
+    int   dsize;
+}datum_s;
+
+typedef struct
+{
     char *pcLdapUrl;
     char *pcAdminDn;
     char *pcPassword;

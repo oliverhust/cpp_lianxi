@@ -36,15 +36,21 @@
 #define _ISNSMEMDATA_H
 
 
-/* Modeled after DTQ */
+typedef struct tagIsnsMemHead
+{
+    DTQ_HEAD_S stHead;
+    UINT uiSubListCount;
+}ISNS_MEMD_HEAD_S;
 
+
+/* Modeled after DTQ */
 ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount);
-datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey);
-ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue);
-ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey);
-datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextValue);
-ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
-                        OUT datum *pstNextKey, OUT datum *pstNextValue);
+datum_s ISNS_MEMDATA_Read(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey);
+ULONG ISNS_MEMDATA_Write(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, IN datum_s stValue);
+ULONG ISNS_MEMDATA_Delete(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey);
+datum_s ISNS_MEMDATA_GetNext(IN ISNS_MEMD_HEAD_S *pstMHead, IN datum_s stKey, OUT datum_s *pstNextValue);
+ULONG ISNS_MEMDATA_Iter(IN ISNS_MEMD_HEAD_S *pstMHead, INOUT VOID **ppIter,
+                        OUT datum_s *pstNextKey, OUT datum_s *pstNextValue);
 
 
 

@@ -40,17 +40,17 @@
 typedef struct
 {
     DTQ_NODE_S stNode;
-    uint32_t list_id;
-    void *data;
-    uint32_t data_size;
-    uint32_t uiVersionIter;  /* 平时无意义，迭代时的临时变量 */
+    UINT list_id;
+    VOID *data;
+    UINT data_size;
+    UINT uiVersionIter;  /* 平时无意义，迭代时的临时变量 */
 } ISNS_LIST_NODE;
 
 typedef struct
 {
     DTQ_HEAD_S stHead;
-    uint32_t list_id;
-    uint32_t uiVersion; /* 数据版本号 用作快速遍历，判断LIST是否发生改变 */
+    UINT list_id;
+    UINT uiVersion; /* 数据版本号 用作快速遍历，判断LIST是否发生改变 */
 } ISNS_LIST_S;
 
 typedef struct

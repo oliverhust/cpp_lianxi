@@ -1458,9 +1458,6 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
       }
 
       //接下来是注册DD的具体字段
-      __DEBUG (isns_reg_debug &1, p_dd dds_dds_list id:%i,p_dd->dds_list.list_id);
-      __DEBUG (isns_reg_debug &1, p_dd member_list id:%i,p_dd->member_list.list_id);
-
       /* Prep the SCN message */ //准备SCN报文
       newMemberFlag = FALSE;
       new_scn_bitmap = 0;
@@ -1591,7 +1588,6 @@ ISNSdbAddAttrDD ( ISNS_Msg_Descp *p_md, ISNS_Msg * p_rspmsg )
          return ( ISNS_INVALID_REG_ERR );
       }
       /* Store Entry */
-      __DEBUG (isns_reg_debug &1, now write dd record dds_list id:%i,entry.data.dd.dds_list.list_id);
       rval = write_DDObject(dd_key.id, entry);
       if( SUCCESS != rval)
         return (ISNS_UNKNOWN_ERR);

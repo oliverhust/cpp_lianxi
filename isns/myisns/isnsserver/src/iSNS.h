@@ -148,5 +148,4 @@ int SNSMain(ISNS_Entity role);
 extern void
 SNSExceptionHandler(void);
 
-
 #endif

@@ -305,7 +305,8 @@ STATIC ULONG _isns_Value2Entry(IN UINT uiType, IN datum stValue, OUT SOIP_DB_Ent
 STATIC VOID _isns_FreeMemListHead(IN const ISNS_DBKey *pstDbKey)
 {
     SOIP_DB_Entry stEntry;
-    ISNS_LIST *pstList;
+    ISNS_LIST *pstListPPtr;
+    ISNS_LIST_S *pstList;
     CHAR *pcParent;
     UINT uiI;
 
@@ -322,12 +323,13 @@ STATIC VOID _isns_FreeMemListHead(IN const ISNS_DBKey *pstDbKey)
         }
 
         pcParent = (CHAR *)&stEntry + g_astIsnsMemValue[pstDbKey->tag].uiOffset;
-        pstList = (ISNS_LIST *)(pcParent + g_auiIsnsListOffset[uiI].uiOffset);
-        if(NULL != pstList->pstHead)
+        pstListPPtr = (ISNS_LIST *)(pcParent + g_auiIsnsListOffset[uiI].uiOffset);
+        pstList = pstListPPtr->pstList;
+        if(NULL != pstList)
         {
-            memset(pstList->pstHead, 0, sizeof(DTQ_HEAD_S));
-            free(pstList->pstHead);
-            pstList->pstHead = NULL;
+            memset(pstList, 0, sizeof(ISNS_LIST_S));
+            free(pstList);
+            memset(pstListPPtr, 0, sizeof(ISNS_LIST));
         }
     }
 
@@ -606,12 +608,21 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
 ----------------------------------------------------------------------
 
 *********************************************************************/
-BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstList)
+BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstListPPtr)
 {
-    if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX ||
-       NULL == pstList->pstHead || NULL == pstList->pstHead->stHead.pstNext ||
-       NULL == pstList->pstHead->stHead.pstPrev)
+    ISNS_LIST_S *pstList;
+
+    if(NULL == pstListPPtr || NULL == pstListPPtr->pstList)
     {
+        __LOG_ERROR("The list is not init, ptr = %p", pstListPPtr);
+        return BOOL_FALSE;
+    }
+
+    pstList = pstListPPtr->pstList;
+    if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX ||
+       NULL == pstList->stHead.stHead.pstNext || NULL == pstList->stHead.stHead.pstPrev)
+    {
+        __LOG_ERROR("The list is not init, list type = %u", pstList->list_id);
         return BOOL_FALSE;
     }
 
@@ -635,11 +646,12 @@ BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstList)
 *********************************************************************/
 INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 {
-    ISNS_LIST *pstList = NULL;
+    ISNS_LIST *pstListPPtr = NULL;
+    ISNS_LIST_S *pstList;
 
     if(DATA_LIST_INVALID < iListId && iListId < DATA_LIST_MAX)
     {
-        pstList = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId].uiOffset);
+        pstListPPtr = (ISNS_LIST *)((UCHAR *)pRecord + g_auiIsnsListOffset[iListId].uiOffset);
     }
     else if(DATA_LIST_MAX < iListId && iListId < DATA_LIST_OLD_MAX)
     {
@@ -651,17 +663,102 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
         return ISNS_UNKNOWN_ERR;
     }
 
-    memset(pstList, 0, sizeof(ISNS_LIST));
+    memset(pstListPPtr, 0, sizeof(ISNS_LIST));
 
-    pstList->pstHead = (DTQ_HEAD_S *)malloc(sizeof(DTQ_HEAD_S));
-    if(NULL == pstList->pstHead)
+    pstList = (ISNS_LIST_S *)malloc(sizeof(ISNS_LIST_S));
+    if(NULL == pstList)
     {
         return ISNS_UNKNOWN_ERR;
     }
-    DTQ_Init(pstList->pstHead);
+    DTQ_Init(&pstList->stHead);
     pstList->list_id = iListId;
+    pstList->uiVersion = 0;
 
-    __DEBUG (isns_list_debug &1,InitList iListId:%i,pstList->list_id);
+    pstListPPtr->pstList = pstList;
+
+    return ( SUCCESS );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_AddNode
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 添加一个数据到列表末尾
+         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstListPPtr, IN CHAR *pcData, IN INT iDataSize)
+{
+    ISNS_LIST_S *pstList;
+    ISNS_LIST_NODE *pstNode;
+
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    pstList = pstListPPtr->pstList;
+    pstList->uiVersion++;
+    pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
+    if(NULL == pstNode)
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
+    pstNode->list_id = pstList->list_id;
+    pstNode->data = (char *)malloc(iDataSize + 1);
+    if(NULL == pstNode->data)
+    {
+        free(pstNode);
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    memcpy(pstNode->data, pcData, iDataSize);
+    ((CHAR *)pstNode->data)[iDataSize] = 0;
+    pstNode->data_size = iDataSize;
+    DTQ_AddTail(&pstList->stHead, &pstNode->stNode);
+
+    return ( SUCCESS );
+}
+
+/*********************************************************************
+     Func Name : ISNS_MEM_List_RemoveNode
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 删除列表的一个节点
+         Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
+        Output : 无
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NODE *pstNode)
+{
+    ISNS_LIST_S *pstList;
+
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
+    {
+        return ISNS_UNKNOWN_ERR;
+    }
+
+    pstList = pstListPPtr->pstList;
+    pstList->uiVersion++;
+
+    DTQ_Del(&pstNode->stNode);
+    free(pstNode->data);
+    free(pstNode);
 
     return ( SUCCESS );
 }
@@ -681,23 +778,20 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstList)
+INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstListPPtr)
 {
-    DTQ_HEAD_S *pstHead = pstList->pstHead;
+    ISNS_LIST_S *pstList;
     ISNS_LIST_NODE *pstNode;
 
-    __DEBUG (isns_list_debug &1,DeleteList list_id:%i,pstList->list_id);
-
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
         return ISNS_UNKNOWN_ERR;
     }
-    if(NULL == pstList->pstHead)
-    {
-        return (SUCCESS);
-    }
 
-    DTQ_FOREACH_ENTRY(pstHead, pstNode, stNode)
+    pstList = pstListPPtr->pstList;
+    pstList->uiVersion++;
+
+    DTQ_FOREACH_ENTRY((&pstList->stHead), pstNode, stNode)
     {
         DTQ_Del(&pstNode->stNode);
         free(pstNode->data);
@@ -722,24 +816,28 @@ INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstList)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList)
+VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstListPPtr)
 {
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    UINT32 uiListId;
+
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
-        __LOG_ERROR ("List_GetParent: Not init, listId=%d", pstList->list_id);
         return NULL;
     }
-    return (VOID *)((UCHAR *)pstList - g_auiIsnsListOffset[pstList->list_id].uiOffset);
+
+    uiListId = pstListPPtr->pstList->list_id;
+
+    return (VOID *)((UCHAR *)pstListPPtr - g_auiIsnsListOffset[uiListId].uiOffset);
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEM_List_RemoveNode
+     Func Name : ISNS_MEM_List_FindNode
   Date Created : 2016/10/26
         Author : liangjinchao@dian
-   Description : 删除列表的一个节点
-         Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
+   Description : 查找列表中的某个数据的节点
+         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
         Output : 无
-        Return : 成功/失败
+        Return : 节点
        Caution : 无
 ----------------------------------------------------------------------
  Modification History
@@ -747,20 +845,30 @@ VOID *ISNS_MEM_List_GetParent(IN ISNS_LIST *pstList)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode)
+ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstListPPtr,
+                                       IN const CHAR *pcData, IN INT iDataSize)
 {
-    __DEBUG (isns_list_debug &1,Remove Node);
+    ISNS_LIST_S *pstList;
+    ISNS_LIST_NODE *pstNode;
 
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
-        return ISNS_UNKNOWN_ERR;
+        return NULL;
     }
 
-    DTQ_Del(&pstNode->stNode);
-    free(pstNode->data);
-    free(pstNode);
+    pstList = pstListPPtr->pstList;
+    pstNode = NULL;
 
-    return ( SUCCESS );
+    DTQ_FOREACH_ENTRY((&pstList->stHead), pstNode, stNode)
+    {
+        if (pstNode->data_size == iDataSize &&
+            0 == memcmp((CHAR *)pstNode->data, pcData, iDataSize))
+        {
+            break;
+        }
+    }
+
+    return pstNode;
 }
 
 /*********************************************************************
@@ -816,98 +924,6 @@ VOID *ISNS_MEM_List_GetNodeData(IN ISNS_LIST_NODE *pstNode, OUT INT *piSize)
 }
 
 /*********************************************************************
-     Func Name : ISNS_MEM_List_FindNode
-  Date Created : 2016/10/26
-        Author : liangjinchao@dian
-   Description : 查找列表中的某个数据的节点
-         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
-        Output : 无
-        Return : 节点
-       Caution : 无
-----------------------------------------------------------------------
- Modification History
-    DATE        NAME             DESCRIPTION
-----------------------------------------------------------------------
-
-*********************************************************************/
-ISNS_LIST_NODE *ISNS_MEM_List_FindNode(IN ISNS_LIST *pstList,
-                                       IN CHAR *pcData, IN INT iDataSize)
-{
-    ISNS_LIST_NODE *pstNode;
-    const CHAR *pcTmpData;
-    INT iTmpSize;
-
-    __DEBUG (isns_list_debug &1,FindNode list_id:%i, pstList->list_id);
-
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
-    {
-        __LOG_ERROR ("Find Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
-        return NULL;
-    }
-
-    pstNode = NULL;
-    while (NULL != (pstNode=ISNS_MEM_List_GetNext(pstList, pstNode, &pcTmpData, &iTmpSize)) )
-    {
-        if (iTmpSize == iDataSize && 0 == memcmp(pcTmpData, pcData, iDataSize))
-        {
-            break;
-        }
-    }
-
-    return pstNode;
-}
-
-/*********************************************************************
-     Func Name : ISNS_MEM_List_AddNode
-  Date Created : 2016/10/26
-        Author : liangjinchao@dian
-   Description : 添加一个数据到列表末尾
-         Input : IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize
-        Output : 无
-        Return : 成功/失败
-       Caution : 无
-----------------------------------------------------------------------
- Modification History
-    DATE        NAME             DESCRIPTION
-----------------------------------------------------------------------
-
-*********************************************************************/
-INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSize)
-{
-    ISNS_LIST_NODE *pstNode;
-
-    __DEBUG (isns_list_debug &1, AddNode - list_id:%i,pstList->list_id);
-
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
-    {
-        __LOG_ERROR ("Add Node: Not init, listId=%d, dataSize=%d", pstList->list_id, iDataSize);
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
-    if(NULL == pstNode)
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
-    pstNode->list_id = pstList->list_id;
-    pstNode->data = (char *)malloc(iDataSize + 1);
-    if(NULL == pstNode->data)
-    {
-        free(pstNode);
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memcpy(pstNode->data, pcData, iDataSize);
-    ((CHAR *)pstNode->data)[iDataSize] = 0;
-    pstNode->data_size = iDataSize;
-    DTQ_AddTail(pstList->pstHead, &pstNode->stNode);
-
-    return ( SUCCESS );
-}
-
-/*********************************************************************
      Func Name : ISNS_MEM_List_IsEmpty
   Date Created : 2016/10/26
         Author : liangjinchao@dian
@@ -922,12 +938,21 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSi
 ----------------------------------------------------------------------
 
 *********************************************************************/
-BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
+BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstListPPtr)
 {
-    if(NULL == pstList->pstHead || DTQ_IsEmpty(pstList->pstHead))
+    ISNS_LIST_S *pstList;
+
+    if(BOOL_TRUE != ISNS_MEM_List_IsInit(pstListPPtr))
     {
         return BOOL_TRUE;
     }
+
+    pstList = pstListPPtr->pstList;
+    if(DTQ_IsEmpty(&pstList->stHead))
+    {
+        return BOOL_TRUE;
+    }
+
     return BOOL_FALSE;
 }
 
@@ -947,30 +972,38 @@ BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList)
 ----------------------------------------------------------------------
 
 *********************************************************************/
-ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode,
+ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NODE *pstNode,
                                       OUT const CHAR **ppcData, OUT INT *piSize)
 {
+    ISNS_LIST_S *pstList;
     ISNS_LIST_NODE *pstRet;
 
-    __DEBUG (isns_list_debug &1,GetNextNode list_id:%i, pstList->list_id);
-
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
-        __LOG_ERROR ("GetNextNode: Not init, listId=%d", pstList->list_id);
         return NULL;
     }
 
+    pstList = pstListPPtr->pstList;
     if(NULL == pstNode)
     {
-        pstRet = DTQ_ENTRY_FIRST(pstList->pstHead, ISNS_LIST_NODE, stNode);
+        pstRet = DTQ_ENTRY_FIRST(&pstList->stHead, ISNS_LIST_NODE, stNode);
+    }
+    else if(pstNode->uiVersionIter == pstList->uiVersion)
+    {
+        pstRet = DTQ_ENTRY_NEXT(&pstList->stHead, pstNode, stNode); /* 大多数情况 */
     }
     else
     {
-        pstRet = DTQ_ENTRY_NEXT(pstList->pstHead, pstNode, stNode);
+        pstRet = ISNS_MEM_List_FindNode(pstListPPtr, (CHAR *)pstNode->data, pstNode->data_size);
+        if(NULL != pstRet)
+        {
+            pstRet = DTQ_ENTRY_NEXT(&pstList->stHead, pstNode, stNode);
+        }
     }
 
     if(NULL != pstRet)
     {
+        pstRet->uiVersionIter = pstList->uiVersion;
         if(NULL != ppcData)
         {
             *ppcData = pstRet->data;

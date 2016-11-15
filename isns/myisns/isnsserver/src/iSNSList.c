@@ -62,22 +62,22 @@ InitList(int list_id, void * record)
 Deletes/DeInit a list.
 ********************************************************************/
 int
-DeleteList(ISNS_LIST *pstList)
+DeleteList(ISNS_LIST *pstListPPtr)
 {
     INT iRet = SUCCESS;
     VOID *pParent;
 
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
         return ISNS_UNKNOWN_ERR;
     }
 
-    pParent = ISNS_MEM_List_GetParent(pstList);
+    pParent = ISNS_MEM_List_GetParent(pstListPPtr);
 
     /* 所有删除操作先从LDAP/DBM开始 */
-    iRet |= ISNS_LDAP_List_Delete(pstList->list_id, pParent);
+    iRet |= ISNS_LDAP_List_Delete(pstListPPtr->pstList->list_id, pParent);
 
-    iRet |= ISNS_MEM_List_Delete(pstList);
+    iRet |= ISNS_MEM_List_Delete(pstListPPtr);
 
     return iRet;
 }
@@ -86,23 +86,22 @@ DeleteList(ISNS_LIST *pstList)
 Removes a node from a list.
 ********************************************************************/
 int
-RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
+RemoveNode(ISNS_LIST *pstListPPtr, ISNS_LIST_NODE *pstNode)
 {
     INT iRet = SUCCESS;
     VOID *pParent;
 
-    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstList))
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
-        __LOG_ERROR ("Remove Node: Not init, listId=%d", pstList->list_id);
         return ISNS_UNKNOWN_ERR;
     }
 
-    pParent = ISNS_MEM_List_GetParent(pstList);
+    pParent = ISNS_MEM_List_GetParent(pstListPPtr);
 
     /* 删除操作先从LDAP/DBM开始 */
-    iRet |= ISNS_LDAP_List_RemoveNode(pstList->list_id, pParent, pstNode->data, pstNode->data_size);
+    iRet |= ISNS_LDAP_List_RemoveNode(pstListPPtr->pstList->list_id, pParent, pstNode->data, pstNode->data_size);
 
-    iRet |= ISNS_MEM_List_RemoveNode(pstList, pstNode);
+    iRet |= ISNS_MEM_List_RemoveNode(pstListPPtr, pstNode);
 
     return iRet;
 }
@@ -111,7 +110,7 @@ RemoveNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
 Retrieves the data pointer from a node.  尽量不要用这个不安全的函数
 ********************************************************************/
 void *
-GetNodeData(ISNS_LIST_NODE *pnode )
+GetNodeData(ISNS_LIST_NODE *pnode)
 {
    return ISNS_MEM_List_GetNodeData(pnode, NULL);
 }
@@ -120,30 +119,30 @@ GetNodeData(ISNS_LIST_NODE *pnode )
 Finds an object in the list.
 ********************************************************************/
 ISNS_LIST_NODE *
-FindNode(ISNS_LIST *pstList, char *pdata, int data_size)
+FindNode(ISNS_LIST *pstListPPtr, char *pdata, int data_size)
 {
-    return ISNS_MEM_List_FindNode(pstList, pdata, data_size);
+    return ISNS_MEM_List_FindNode(pstListPPtr, pdata, data_size);
 }
 
 /********************************************************************
 Adds a node to a list.
 ********************************************************************/
 int
-AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
+AddNode(ISNS_LIST *pstListPPtr, char *pdata, int data_size)
 {
     INT iRet;
     const VOID *pParent;
 
-    iRet = ISNS_MEM_List_AddNode(pstList, pdata, data_size);
+    iRet = ISNS_MEM_List_AddNode(pstListPPtr, pdata, data_size);
     if(SUCCESS != iRet)
     {
         return iRet;
     }
 
-    pParent = ISNS_MEM_List_GetParent(pstList);
+    pParent = ISNS_MEM_List_GetParent(pstListPPtr);
 
     /* 添加时先添加到内存，删除时最后才从内存删除 */
-    iRet = ISNS_LDAP_List_AddNode(pstList->list_id, pParent, pdata, data_size);
+    iRet = ISNS_LDAP_List_AddNode(pstListPPtr->pstList->list_id, pParent, pdata, data_size);
 
     return iRet;
 }
@@ -152,9 +151,9 @@ AddNode(ISNS_LIST *pstList, char *pdata, int data_size)
 Returns true if the list is empty.
 ********************************************************************/
 int
-IsEmptyList(ISNS_LIST *pstList)
+IsEmptyList(ISNS_LIST *pstListPPtr)
 {
-    return ISNS_MEM_List_IsEmpty(pstList);
+    return ISNS_MEM_List_IsEmpty(pstListPPtr);
 }
 
 /********************************************************************
@@ -162,9 +161,9 @@ Returns the next node in a list.
 尽量不要用这个不安全的函数，用GetNextData代替
 ********************************************************************/
 ISNS_LIST_NODE *
-GetNextNode(ISNS_LIST *pstList, ISNS_LIST_NODE *pstNode)
+GetNextNode(ISNS_LIST *pstListPPtr, ISNS_LIST_NODE *pstNode)
 {
-    return ISNS_MEM_List_GetNext(pstList, pstNode, NULL, NULL);
+    return ISNS_MEM_List_GetNext(pstListPPtr, pstNode, NULL, NULL);
 }
 
 /********************************************************************
@@ -178,14 +177,14 @@ eg:  ISNS_LIST_NODE *pstNode = NULL;  //必须初始化为NULL
      }
 ********************************************************************/
 ULONG
-GetNextData(IN ISNS_LIST *pstList, INOUT ISNS_LIST_NODE **ppstNode,
+GetNextData(IN ISNS_LIST *pstListPPtr, INOUT ISNS_LIST_NODE **ppstNode,
             OUT CHAR *pcOutBuff, IN UINT uiBuffSize)
 {
     ISNS_LIST_NODE *pstNext;
     const CHAR *pcTmpData = NULL;
     INT iSize = 0;
 
-    pstNext = ISNS_MEM_List_GetNext(pstList, *ppstNode, &pcTmpData, &iSize);
+    pstNext = ISNS_MEM_List_GetNext(pstListPPtr, *ppstNode, &pcTmpData, &iSize);
     if(NULL == pstNext)
     {
         return ISNS_NO_SUCH_ENTRY_ERR;  /* 遍历到最后一个了 */

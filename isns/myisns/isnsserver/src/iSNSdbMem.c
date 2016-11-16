@@ -33,7 +33,12 @@
 #include "iSNSdbMem.h"
 #include "iSNSMemData.h"
 
+/* 静态数据的个数 */
 #define ISNS_MEM_LIST_GLOBAL_NUM        4
+
+/* 版本号的初始值(任意但<步进)和步进(2^n) */
+#define ISNS_MEM_LIST_VER_INIT          0xEA
+#define ISNS_MEM_LIST_VER_STEP          0x100
 
 typedef enum
 {
@@ -626,6 +631,12 @@ BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstListPPtr)
         return BOOL_FALSE;
     }
 
+    if(pstList->uiVersion % ISNS_MEM_LIST_VER_STEP != ISNS_MEM_LIST_VER_INIT)
+    {
+        __LOG_ERROR("Invalid list version %u, list type = %u", pstList->uiVersion, pstList->list_id);
+        return BOOL_FALSE;
+    }
+
     return BOOL_TRUE;
 }
 
@@ -672,7 +683,7 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
     }
     DTQ_Init(&pstList->stHead);
     pstList->list_id = iListId;
-    pstList->uiVersion = 0;
+    pstList->uiVersion = ISNS_MEM_LIST_VER_INIT;
 
     pstListPPtr->pstList = pstList;
 
@@ -705,7 +716,7 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstListPPtr, IN CHAR *pcData, IN INT iDa
     }
 
     pstList = pstListPPtr->pstList;
-    pstList->uiVersion++;
+    pstList->uiVersion += ISNS_MEM_LIST_VER_STEP;
     pstNode = (ISNS_LIST_NODE *)malloc(sizeof(ISNS_LIST_NODE));
     if(NULL == pstNode)
     {
@@ -754,7 +765,7 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NODE *pstNo
     }
 
     pstList = pstListPPtr->pstList;
-    pstList->uiVersion++;
+    pstList->uiVersion += ISNS_MEM_LIST_VER_STEP;
 
     DTQ_Del(&pstNode->stNode);
     free(pstNode->data);
@@ -789,7 +800,7 @@ INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstListPPtr)
     }
 
     pstList = pstListPPtr->pstList;
-    pstList->uiVersion++;
+    pstList->uiVersion += ISNS_MEM_LIST_VER_STEP;
 
     DTQ_FOREACH_ENTRY((&pstList->stHead), pstNode, stNode)
     {

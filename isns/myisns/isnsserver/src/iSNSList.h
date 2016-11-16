@@ -50,7 +50,7 @@ typedef struct
 {
     DTQ_HEAD_S stHead;
     UINT list_id;
-    UINT uiVersion; /* 数据版本号 用作快速遍历，判断LIST是否发生改变 */
+    UINT uiVersion; /* 数据版本号，用于在遍历过程中判断LIST是否被写/删，使得函数外部遍历复杂度不为O(n^2) */
 } ISNS_LIST_S;
 
 typedef struct

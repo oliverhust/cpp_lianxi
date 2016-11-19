@@ -39,18 +39,18 @@
 
 typedef struct
 {
+    UINT64 uiVersion;  /* 平时无意义，迭代时的临时变量，判断该节点是否完好 */
     DTQ_NODE_S stNode;
     UINT list_id;
     VOID *data;
     UINT data_size;
-    UINT uiVersionIter;  /* 平时无意义，迭代时的临时变量 */
 } ISNS_LIST_NODE;
 
 typedef struct
 {
-    DTQ_HEAD_S stHead;
+    UINT64 uiVersion; /* 数据版本号(有规律增加)，用于在遍历过程中判断下一个节点是否被写/删/破坏 */
+    DTQ_HEAD_S stHead; /* 真正的链表头*/
     UINT list_id;
-    UINT uiVersion; /* 数据版本号，用于在遍历过程中判断LIST是否被写/删，使得函数外部遍历复杂度不为O(n^2) */
 } ISNS_LIST_S;
 
 typedef struct
@@ -62,8 +62,8 @@ ISNS_LIST_NODE *
 GetNextNode(ISNS_LIST *plist, ISNS_LIST_NODE *pnode);
 
 ULONG
-GetNextData(IN ISNS_LIST *pstList, INOUT ISNS_LIST_NODE **ppstNode,
-            OUT CHAR *pcOutBuff, IN UINT uiBuffSize);
+GetNextData(IN ISNS_LIST *pstListPPtr, INOUT ISNS_LIST_NODE **ppstNode,
+            OUT VOID *pOutBuff, IN UINT uiBuffSize);
 
 int
 IsEmptyList(ISNS_LIST *plist);

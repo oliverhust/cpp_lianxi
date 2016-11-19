@@ -135,6 +135,16 @@
 #define strlcpy strncpy
 #define scnprintf snprintf
 
+/* ISNS各种数据的类型 */
+typedef enum
+{
+    ISNS_TYPE_INVALID = 0,
+    ISNS_TYPE_BIN,    /* 二进制类型，如结构体 */
+    ISNS_TYPE_STR,    /*  字符串 */
+    ISNS_TYPE_UINT32,  /* 32位无符号整形 */
+    ISNS_TYPE_MAX
+}ISNS_DATA_TYPE;
+
 /*
  * Declaration of the attribute value structure.
  */
@@ -349,7 +359,7 @@ typedef struct soip_dds {
     uint32_t              status;
     char                  sym_name[DDS_SYM_NAME_SIZE];
 
-    ISNS_LIST             dd_list;
+    ISNS_LIST             dd_list;   /* UINT32 (dd id) DDS_DD_LIST */
 
 } SOIP_Dds;
 
@@ -362,13 +372,22 @@ typedef struct soip_dd_member {
 
 } SOIP_Dd_Member, SOIP_DD_Member_Key;
 
+typedef struct soip_dd_portal_member {
+
+   IP_Address             ip_addr;
+   uint32_t               ip_port;
+   uint32_t               node_idx;
+
+} SOIP_Dd_Portal_Member, SOIP_DD_Portal_Member_Key;
+
 typedef uint32_t* ISNS_DD_LIST;
 
 typedef struct soip_dd {
    uint32_t               id;
    char                   sym_name[DD_SYM_NAME_SIZE];
-   ISNS_LIST              member_list;
-   ISNS_LIST              dds_list;
+   ISNS_LIST              member_list;  /*  SOIP_Dd_Member  DD_MEMBER_LIST */
+   ISNS_LIST              portal_list;
+   ISNS_LIST              dds_list;     /* UINT32 (dds id)  DD_DDS_LIST */
    uint32_t               activeFlag;
    uint32_t               feature;
 } SOIP_Dd;
@@ -508,9 +527,9 @@ typedef struct soip_entity {
     uint32_t             entity_index;
     SOIP_Time            timestamp;
     IP_Address           mgmt_ip_addr;
-    ISNS_LIST            iportal_list;
+    ISNS_LIST            iportal_list;      /* PORTAL_LIST_ENTRY ENTITY_PORTAL_LIST  (SOIP_Portal_Key) */
     ISNS_LIST            ifcp_node_list;
-    ISNS_LIST            iscsi_node_list;
+    ISNS_LIST            iscsi_node_list;   /* CHAR[MAX_ISCSI_NODE_ID_SIZE]  ENTITY_ISCSI_LIST */
     uint32_t             scn_bitmap;
     int                  scn_sockfd;
     SOIP_Prot_Ver        prot_ver;
@@ -612,7 +631,7 @@ typedef struct soip_iscsi {
    uint32_t                type;
    char                    alias[MAX_ISCSI_ALIAS_SIZE];
    uint32_t                alias_len;
-   ISNS_LIST               dd_id_list;
+   ISNS_LIST               dd_id_list;  /* UINT32(dd id) ISCSI_DD_LIST */
 
    /* SCN */
    uint32_t                entity_index;
@@ -643,11 +662,18 @@ typedef struct _soip_iscsi_key {
                     否则使iDdRefCount--;
   如上述工作正常，不应有iDdRefCount变成负数的情况
   由于引用计数容易考虑疏漏，类似问题最好分析好各种情况  */
-typedef struct _soip_iscsi_inedx {
+typedef struct _soip_iscsi_index {
     char   v[MAX_ISCSI_NODE_ID_SIZE];
     uint32_t uiIndex;
     int iDdRefCount;    /* 被多少DD引用，ADD DD MEM时++，DelDDMem/DelDD时-- */
 } SOIP_ISCSI_Index;
+
+typedef struct soip_portal_index {
+    IP_Address ip_addr;
+    uint32_t   ip_port;
+    uint32_t uiIndex;
+    int iDdRefCount;    /* 被多少DD引用，ADD DD MEM时++，DelDDMem/DelDD时-- */
+} SOIP_Portal_Index;
 
 /* ids for identifying which list */
 typedef enum {
@@ -656,6 +682,7 @@ typedef enum {
   ENTITY_PORTAL_LIST,
   ENTITY_ISCSI_LIST,
   DD_MEMBER_LIST,
+  DD_PORTAL_LIST,
   DD_DDS_LIST,
   DDS_DD_LIST,
 
@@ -723,7 +750,7 @@ typedef struct soip_db_entry {
         SOIP_Node         node;
         SOIP_Entity_Id    entity_idx;
         SOIP_ISCSI_Index  iscsi_idx;
-        SOIP_DB_Portal    portal_idx;
+        SOIP_Portal_Index portal_idx;
         SOIP_DB_List      list;
     } data;
 

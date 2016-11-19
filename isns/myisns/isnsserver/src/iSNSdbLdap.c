@@ -40,7 +40,7 @@
 #include "iSNSdbLdap.h"
 #include "iSNSLdapLib.h"
 
-/* RDN属性名所在数组下标为1(如果两个属性组成RDN则为1和2) */
+/* RDN属性名所在数组下标为1 */
 
 /* DD 的属性名数组，最后一个字符串指针要为NULL */
 STATIC const CHAR * const g_apcAttrsDD[ISNS_LDAP_ORD_DD_MAX + 1] =
@@ -146,8 +146,8 @@ STATIC const CHAR * const * const g_appcAllAttrs[ISNS_LDAP_DIR_OBJ_MAX + 1] =
     [ISNS_LDAP_DIR_OBJ_MAX] = NULL
 };
 
-#define ISNS_LDAP_FMT_PORTAL_KEY        "IP=%s,Port=%d"
-#define ISNS_LDAP_FMT_PG                "IP=%s,Port=%d,Node=%s"
+#define ISNS_LDAP_FMT_PORTAL_KEY        "IP=%s,Port=%d,Ptrl=%s"
+#define ISNS_LDAP_FMT_PG                "IP=%s,Port=%d,Ptrl=%s,Node=%s"
 
 
 /*********************************************************************
@@ -220,16 +220,24 @@ STATIC VOID _ldap_NKeyFmt(IN const IP_Address *pstIPAddr, IN UINT uiPort, IN con
                           OUT CHAR *pcOut, IN UINT uiSize)
 {
     CHAR szStrIP[ISNS_LDAP_IPADDR_SIZE];
+    const CHAR *pcPtrl = "TCP";
+    UINT uiRealPort = uiPort;
 
     _ldap_IPAddr2Str(pstIPAddr, szStrIP, sizeof(szStrIP));
 
+    if(uiPort > 0xffff)
+    {
+        uiRealPort = uiPort & 0xffff;
+        pcPtrl = "UDP";
+    }
+
     if(NULL != pcName && '\0' != pcName[0])
     {
-        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PG, szStrIP, uiPort, pcName);
+        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PG, szStrIP, uiRealPort, pcPtrl, pcName);
     }
     else
     {
-        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PORTAL_KEY, szStrIP, uiPort);
+        scnprintf(pcOut, uiSize, ISNS_LDAP_FMT_PORTAL_KEY, szStrIP, uiRealPort, pcPtrl);
     }
 
     return;
@@ -338,8 +346,6 @@ ULONG ISNS_LDAP_AddDD(IN const SOIP_Dd *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szId[ISNS_NUM_STR_MAX_SIZE];
     CHAR szFeature[ISNS_LDAP_BIT_STR_SIZE];
@@ -352,18 +358,9 @@ ULONG ISNS_LDAP_AddDD(IN const SOIP_Dd *pstCfg)
     apcValue[ISNS_LDAP_ORD_DD_SYMNAME] = pstCfg->sym_name;
     apcValue[ISNS_LDAP_ORD_DD_FEATURE] = szFeature;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsDD, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_DD, szId, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsDD, apcValue);
 }
 
 /*********************************************************************
@@ -385,14 +382,11 @@ ULONG ISNS_LDAP_DelDD(IN UINT32 uiDDId)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
     CHAR szId[ISNS_NUM_STR_MAX_SIZE];
-    ULONG ulRet;
 
     scnprintf(szId, sizeof(szId), "%u", uiDDId);
     _ldap_FillDn(ISNS_LDAP_DIR_DD, szId, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************
@@ -414,8 +408,6 @@ ULONG ISNS_LDAP_AddDDS(IN const SOIP_Dds *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szId[ISNS_NUM_STR_MAX_SIZE];
     CHAR szStatus[ISNS_LDAP_BIT_STR_SIZE];
@@ -428,18 +420,9 @@ ULONG ISNS_LDAP_AddDDS(IN const SOIP_Dds *pstCfg)
     apcValue[ISNS_LDAP_ORD_DDS_SYMNAME] = pstCfg->sym_name;
     apcValue[ISNS_LDAP_ORD_DDS_STATUS] = szStatus;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsDDS, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_DDS, szId, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsDDS, apcValue);
 }
 
 /*********************************************************************
@@ -461,14 +444,11 @@ ULONG ISNS_LDAP_DelDDS(IN UINT32 uiDDSId)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
     CHAR szId[ISNS_NUM_STR_MAX_SIZE];
-    ULONG ulRet;
 
     scnprintf(szId, sizeof(szId), "%u", uiDDSId);
     _ldap_FillDn(ISNS_LDAP_DIR_DDS, szId, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************
@@ -490,8 +470,6 @@ ULONG ISNS_LDAP_AddIscsi(IN const SOIP_Iscsi *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szType[ISNS_LDAP_BIT_STR_SIZE];
     CHAR szIndex[ISNS_NUM_STR_MAX_SIZE];
@@ -509,18 +487,9 @@ ULONG ISNS_LDAP_AddIscsi(IN const SOIP_Iscsi *pstCfg)
     apcValue[ISNS_LDAP_ORD_ISCSI_SCNMAP] = szScnMap;
     apcValue[ISNS_LDAP_ORD_ISCSI_ENTITYID] = pstCfg->entity_id.id;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsIscsi, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_ISCSI, pstCfg->id.v, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsIscsi, apcValue);
 }
 
 /*********************************************************************
@@ -541,13 +510,10 @@ ULONG ISNS_LDAP_AddIscsi(IN const SOIP_Iscsi *pstCfg)
 ULONG ISNS_LDAP_DelIscsi(IN const CHAR *pcIscsiName)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    ULONG ulRet;
 
     _ldap_FillDn(ISNS_LDAP_DIR_ISCSI, pcIscsiName, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************
@@ -569,8 +535,6 @@ ULONG ISNS_LDAP_AddEntity(IN const SOIP_Entity *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szIndex[ISNS_NUM_STR_MAX_SIZE];
     CHAR szProtocol[ISNS_NUM_STR_MAX_SIZE];
@@ -598,18 +562,9 @@ ULONG ISNS_LDAP_AddEntity(IN const SOIP_Entity *pstCfg)
     apcValue[ISNS_LDAP_ORD_ENTITY_PRTLMIN] = szPrtlMin;
     apcValue[ISNS_LDAP_ORD_ENTITY_REGPERIOD] = szRegPeriod;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsEntity, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_ENTITY, pstCfg->eid.id, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsEntity, apcValue);
 }
 
 /*********************************************************************
@@ -630,13 +585,10 @@ ULONG ISNS_LDAP_AddEntity(IN const SOIP_Entity *pstCfg)
 ULONG ISNS_LDAP_DelEntity(IN const CHAR *pcEntityID)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    ULONG ulRet;
 
     _ldap_FillDn(ISNS_LDAP_DIR_ENTITY, pcEntityID, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************
@@ -658,8 +610,6 @@ ULONG ISNS_LDAP_AddPortal(IN const SOIP_Portal *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szKey[ISNS_LDAP_IPADDR_SIZE + ISNS_NUM_STR_MAX_SIZE];
     CHAR szEsiInterval[ISNS_NUM_STR_MAX_SIZE];
@@ -685,18 +635,9 @@ ULONG ISNS_LDAP_AddPortal(IN const SOIP_Portal *pstCfg)
     apcValue[ISNS_LDAP_ORD_PORTAL_SECURBITMAP] = szSecurBitmap;
     apcValue[ISNS_LDAP_ORD_PORTAL_ENTITYID] = pstCfg->entity_id.id;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsPortal, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_PORTAL, szKey, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsPortal, apcValue);
 }
 
 /*********************************************************************
@@ -717,16 +658,12 @@ ULONG ISNS_LDAP_AddPortal(IN const SOIP_Portal *pstCfg)
 ULONG ISNS_LDAP_DelPortal(IN const SOIP_Portal_Key *pstPotralKey)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    ULONG ulRet;
-
     CHAR szKey[ISNS_LDAP_IPADDR_SIZE + ISNS_NUM_STR_MAX_SIZE];
 
     _ldap_NKeyFmt(&pstPotralKey->ip_addr, pstPotralKey->ip_port, NULL, szKey, sizeof(szKey));
     _ldap_FillDn(ISNS_LDAP_DIR_PORTAL, szKey, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************
@@ -748,8 +685,6 @@ ULONG ISNS_LDAP_AddPG(IN const SOIP_Portal_Group *pstCfg)
 {
     const CHAR *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    LDAPMod **ppstAttrs;
-    ULONG ulRet;
 
     CHAR szKey[ISNS_LDAP_IPADDR_SIZE + ISNS_NUM_STR_MAX_SIZE + MAX_ISCSI_NODE_ID_SIZE];
     CHAR szPGT[ISNS_NUM_STR_MAX_SIZE];
@@ -764,18 +699,9 @@ ULONG ISNS_LDAP_AddPG(IN const SOIP_Portal_Group *pstCfg)
     apcValue[ISNS_LDAP_ORD_PG_PGT] = szPGT;
     apcValue[ISNS_LDAP_ORD_PG_INDEX] = szIndex;
 
-    ppstAttrs = ISNS_LDAP_NewSingleAttrs(g_apcAttrsPG, apcValue);
-    if(NULL == ppstAttrs)
-    {
-        return ERROR_FAILED;
-    }
-
     _ldap_FillDn(ISNS_LDAP_DIR_PG, szKey, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_ReplaceEntry(szDn, ppstAttrs);
-    ISNS_LDAP_FreeAttrs(&ppstAttrs);
-
-    return ulRet;
+    return ISNS_LDAP_SingleReplace(szDn, g_apcAttrsPG, apcValue);
 }
 
 /*********************************************************************
@@ -796,16 +722,12 @@ ULONG ISNS_LDAP_AddPG(IN const SOIP_Portal_Group *pstCfg)
 ULONG ISNS_LDAP_DelPG(IN const SOIP_Portal_Group_Key *pstKey)
 {
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
-    ULONG ulRet;
-
     CHAR szKey[ISNS_LDAP_IPADDR_SIZE + ISNS_NUM_STR_MAX_SIZE + MAX_ISCSI_NODE_ID_SIZE];
 
     _ldap_NKeyFmt(&pstKey->ip_addr, pstKey->ip_port, pstKey->id.v, szKey, sizeof(szKey));
     _ldap_FillDn(ISNS_LDAP_DIR_PG, szKey, szDn, sizeof(szDn));
 
-    ulRet = ISNS_LDAP_DelEntry(szDn);
-
-    return ulRet;
+    return ISNS_LDAP_DelEntry(szDn);
 }
 
 /*********************************************************************

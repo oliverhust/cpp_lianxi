@@ -142,6 +142,10 @@ void ParsePDU (char *buffer);
 #define __LOG_ERROR(format, ...) isns_log(LOG_ERR,"%s:%d\t" format "\n", __FILE__,__LINE__,##__VA_ARGS__)
 #define __LOG_WARNING(format, ...) isns_log(LOG_WARNING,"%s:%d\t" format "\n", __FILE__,__LINE__,##__VA_ARGS__)
 
+#define ISNS_ERROR __LOG_ERROR
+#define ISNS_WARNING __LOG_WARNING
+#define ISNS_INFO __LOG_INFO
+
 void isns_log(int level, char *format, ...);
 
 #define __ISNS_COPY(a,b,c,d) if (b<d) __LOG_WARNING("dst:%i < src:%i",b,d); isns_copy(a,b,c,d)

@@ -55,6 +55,8 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstList, IN CHAR *pcData, IN INT iDataSi
 BOOL_T ISNS_MEM_List_IsEmpty(IN ISNS_LIST *pstList);
 ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode,
                                       OUT const CHAR **ppcData, OUT INT *piSize);
+ULONG ISNS_MEM_List_NextData(IN ISNS_LIST *pstListPPtr, INOUT ISNS_LIST_NODE **ppstNode,
+                             INOUT VOID *pOutBuff, IN UINT uiBuffSize);
 
 
 

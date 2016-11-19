@@ -24,8 +24,15 @@
 #include <sys/error.h>
 #include <sys/list.h>
 
+#include "iSNStypes.h"
+#include "iSNSList.h"
+#include "iSNSmsg.h"
+#include "iSNSdebug.h"
 #include "iSNSNdb.h"
 #include "iSNSMemData.h"
+
+
+#define ISNS_MEMDATA_MAGIC_TEST_NUM         0xEC4785ABU
 
 /* 内部实现相关结构体 */
 typedef struct tagISNS_MemData
@@ -41,8 +48,10 @@ typedef struct tagISNS_MemNode
 }ISNS_MEM_NODE_S;
 
 
-STATIC DTQ_HEAD_S *g_pstTable = NULL;
+STATIC UINT g_uiIsnsMemMagicTestBegin = ISNS_MEMDATA_MAGIC_TEST_NUM;
 STATIC UINT g_uiMaxTypeCount = 0;
+STATIC DTQ_HEAD_S *g_pstTable = NULL;
+STATIC UINT g_uiIsnsMemMagicTestEnd = ~ISNS_MEMDATA_MAGIC_TEST_NUM;
 
 
 /*********************************************************************
@@ -64,6 +73,8 @@ ULONG ISNS_MEMDATA_Init(UINT uiMaxTypeCount)
 {
     UINT uiI;
 
+    g_uiIsnsMemMagicTestBegin = ISNS_MEMDATA_MAGIC_TEST_NUM;
+    g_uiIsnsMemMagicTestEnd = ~ISNS_MEMDATA_MAGIC_TEST_NUM;
     g_pstTable = (DTQ_HEAD_S *)malloc(uiMaxTypeCount * sizeof(DTQ_HEAD_S));
     if(NULL == g_pstTable)
     {
@@ -228,6 +239,44 @@ STATIC ISNS_MEM_NODE_S *_isns_MemNewNode(IN datum stKey, IN datum stValue)
 }
 
 /*********************************************************************
+     Func Name : _isns_GetDTQHead
+  Date Created : 2016/10/25
+        Author : liangjinchao@dian
+   Description : 获取链表头
+         Input : IN UINT uiType,
+        Output : OUT DTQ_HEAD_S **ppstHead
+        Return : 成功/失败
+       Caution : 无
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC ULONG _isns_GetDTQHead(IN UINT uiType, OUT DTQ_HEAD_S **ppstHead)
+{
+    *ppstHead = NULL;
+
+    if(g_uiIsnsMemMagicTestBegin != ISNS_MEMDATA_MAGIC_TEST_NUM ||
+       g_uiIsnsMemMagicTestEnd != ~ISNS_MEMDATA_MAGIC_TEST_NUM)
+    {
+        __LOG_ERROR("The global memory data has been destoryed.");
+        return ERROR_FAILED;
+    }
+
+    if(uiType < g_uiMaxTypeCount)
+    {
+        *ppstHead = g_pstTable + uiType;
+    }
+    else
+    {
+        return ERROR_FAILED;
+    }
+
+    return ERROR_SUCCESS;
+}
+
+/*********************************************************************
      Func Name : ISNS_MEMDATA_Write
   Date Created : 2016/10/25
         Author : liangjinchao@dian
@@ -249,11 +298,7 @@ ULONG ISNS_MEMDATA_Write(IN UINT uiType, IN datum stKey, IN datum stValue)
     INT iCmp = -1;
     ULONG ulRet = ERROR_SUCCESS;
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(ERROR_SUCCESS != _isns_GetDTQHead(uiType, &pstHead))
     {
         return ERROR_FAILED;
     }
@@ -314,11 +359,7 @@ datum ISNS_MEMDATA_Read(IN UINT uiType, IN datum stKey)
     ISNS_MEM_NODE_S *pstNode = NULL;
     datum stValue = { 0 };
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(ERROR_SUCCESS != _isns_GetDTQHead(uiType, &pstHead))
     {
         return stValue;
     }
@@ -357,11 +398,7 @@ ULONG ISNS_MEMDATA_Delete(IN UINT uiType, IN datum stKey)
     ISNS_MEM_NODE_S *pstNode = NULL;
     ULONG ulRet = ERROR_NOT_FOUND;
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(ERROR_SUCCESS != _isns_GetDTQHead(uiType, &pstHead))
     {
         return ERROR_FAILED;
     }
@@ -412,11 +449,7 @@ datum ISNS_MEMDATA_GetNext(IN UINT uiType, IN datum stKey, OUT datum *pstNextVal
     ISNS_MEM_NODE_S *pstNode = NULL;
     datum stNextKey = { 0 };
 
-    if(uiType < g_uiMaxTypeCount)
-    {
-        pstHead = g_pstTable + uiType;
-    }
-    else
+    if(ERROR_SUCCESS != _isns_GetDTQHead(uiType, &pstHead))
     {
         return stNextKey;
     }
@@ -469,13 +502,12 @@ ULONG ISNS_MEMDATA_Iter(IN UINT uiType, INOUT VOID **ppIter,
     DTQ_HEAD_S *pstHead;
     ISNS_MEM_NODE_S *pstIter, *pstNode = NULL;
 
-    if(uiType >= g_uiMaxTypeCount || NULL == ppIter)
+    if(ERROR_SUCCESS != _isns_GetDTQHead(uiType, &pstHead) || NULL == ppIter)
     {
         return ERROR_FAILED;
     }
 
     /* 如果入参指针指向的数据为空则从第一个开始取，否则去取一个 */
-    pstHead = g_pstTable + uiType;
     if(NULL == *ppIter)
     {
         pstNode = DTQ_ENTRY_FIRST(pstHead, ISNS_MEM_NODE_S, stNode);

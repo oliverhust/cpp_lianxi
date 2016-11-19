@@ -34,11 +34,14 @@
 #include "iSNSMemData.h"
 
 /* 静态数据的个数 */
-#define ISNS_MEM_LIST_GLOBAL_NUM        4
+#define ISNS_MEM_LIST_GLOBAL_NUM            4
+
+/* 表示数据不存在的非法指针 */
+#define ISNS_INVALID_PTR_NOTEXIST           ((VOID *)1)
 
 /* 版本号的初始值(任意但<步进)和步进(2^n) */
-#define ISNS_MEM_LIST_VER_INIT          0xEA
-#define ISNS_MEM_LIST_VER_STEP          0x100
+#define ISNS_MEM_LIST_VER_INIT               0x0756CCEE
+#define ISNS_MEM_LIST_VER_STEP              0x100000000
 
 typedef enum
 {
@@ -87,7 +90,7 @@ STATIC const ISNS_MEM_STRUCT_S g_astIsnsMemValue[ISNS_DATABASE_MAX] =
     [PORTAL_GROUP_ID_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_group), sizeof(SOIP_Portal_Group)},
     [ENTITY_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.entity_idx), sizeof(SOIP_Entity_Id)},
     [ISCSI_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.iscsi_idx), sizeof(SOIP_ISCSI_Index)},
-    [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_idx), sizeof(SOIP_DB_Portal)},
+    [PORTAL_IDX_KEY] = {ISNS_MEM_BIN, offsetof(SOIP_DB_Entry, data.portal_idx), sizeof(SOIP_Portal_Index)},
 };
 
 /* 十字链的位置信息 */
@@ -97,6 +100,7 @@ STATIC const ISNS_MEM_LIST_INFO_S g_auiIsnsListOffset[DATA_LIST_MAX] =
     [ENTITY_PORTAL_LIST] = {offsetof(SOIP_Entity, iportal_list), ENTITY_ID_KEY},
     [ENTITY_ISCSI_LIST] = {offsetof(SOIP_Entity, iscsi_node_list), ENTITY_ID_KEY},
     [DD_MEMBER_LIST] = {offsetof(SOIP_Dd, member_list), DD_ID_KEY},
+    [DD_PORTAL_LIST] = {offsetof(SOIP_Dd, portal_list), DD_ID_KEY},
     [DD_DDS_LIST] = {offsetof(SOIP_Dd, dds_list), DD_ID_KEY},
     [DDS_DD_LIST] = {offsetof(SOIP_Dds, dd_list), DDS_ID_KEY},
 
@@ -342,6 +346,32 @@ STATIC VOID _isns_FreeMemListHead(IN const ISNS_DBKey *pstDbKey)
 }
 
 /*********************************************************************
+     Func Name : _isns_FreeNodeData
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 释放十字链表节点
+         Input : IN DTQ_NODE_S *pstDTQNode
+        Output :
+        Return : 成功/失败
+       Caution : 入参为DTQ_NODE_S *类型
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+STATIC VOID _isns_FreeNodeData(IN VOID *pDTQNode)
+{
+    ISNS_LIST_NODE *pstNode = DTQ_ENTRY((DTQ_NODE_S *)pDTQNode, ISNS_LIST_NODE, stNode);
+
+    free(pstNode->data);
+    memset(pstNode, 0, sizeof(ISNS_LIST_NODE));  /* 破坏版本号等数据 */
+    free(pstNode);
+
+    return ;
+}
+
+/*********************************************************************
      Func Name : ISNS_MEM_Init
   Date Created : 2016/10/25
         Author : liangjinchao@dian
@@ -403,13 +433,13 @@ INT ISNS_MEM_Write(IN const ISNS_DBKey *pstDbKey, IN const SOIP_DB_Entry *pstEnt
 
     if(ERROR_SUCCESS != _isns_FormatByKeyValue(pstDbKey, pstEntry, &stKey, &stValue, &uiTmp))
     {
-        __LOG_ERROR ("When write -- Undefined database tag: %i", pstDbKey->tag);
+        ISNS_ERROR ("When write -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
     }
 
     if(ERROR_SUCCESS != ISNS_MEMDATA_Write(pstDbKey->tag, stKey, stValue))
     {
-        __LOG_ERROR ("When write -- Write Memory data failed, tag = %i", pstDbKey->tag);
+        ISNS_ERROR ("When write -- Write Memory data failed, tag = %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -440,7 +470,7 @@ INT ISNS_MEM_Delete(IN const ISNS_DBKey *pstDbKey)
 
     if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
     {
-        __LOG_ERROR ("When delete -- Undefined database tag: %i", pstDbKey->tag);
+        ISNS_ERROR ("When delete -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -471,7 +501,7 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
 
     if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
     {
-        __LOG_ERROR ("When read -- Undefined database tag: %i", pstDbKey->tag);
+        ISNS_ERROR ("When read -- Undefined database tag: %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -483,7 +513,7 @@ INT ISNS_MEM_Read(IN const ISNS_DBKey *pstDbKey, OUT SOIP_DB_Entry *pstEntry)
 
     if(ERROR_SUCCESS != _isns_Value2Entry(pstDbKey->tag, stValue, pstEntry))
     {
-        __LOG_ERROR ("When read -- Can not convert value, tag = %i", pstDbKey->tag);
+        ISNS_ERROR ("When read -- Can not convert value, tag = %i", pstDbKey->tag);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -517,7 +547,7 @@ INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey)
     {
         if(ERROR_SUCCESS != _isns_FormatByKey(pstDbKey, &stKey, &uiTmp))
         {
-            __LOG_ERROR ("When get next -- Undefined database tag: %i", uiType);
+            ISNS_ERROR ("When get next -- Undefined database tag: %i", uiType);
             return ISNS_UNKNOWN_ERR;
         }
     }
@@ -531,7 +561,7 @@ INT ISNS_MEM_NextKey(INOUT ISNS_DBKey *pstDbKey)
     /* KEY --> DB KEY */
     if(ERROR_SUCCESS != _isns_Key2DbKey(uiType, stNextKey, pstDbKey))
     {
-        __LOG_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
+        ISNS_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -582,7 +612,7 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
     /* KEY --> DB KEY ,  VALUE --> ENTRY */
     if(ERROR_SUCCESS != _isns_Key2DbKey(uiType, stKey, pstDbKey))
     {
-        __LOG_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
+        ISNS_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -590,7 +620,7 @@ INT ISNS_MEM_Iter(INOUT ISNS_DBKey *pstDbKey, INOUT VOID **ppIter, OUT SOIP_DB_E
     {
         if(ERROR_SUCCESS != _isns_Value2Entry(uiType, stValue, pstEntry))
         {
-            __LOG_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
+            ISNS_ERROR ("When get next -- Can not convert value, tag = %i", uiType);
             return ISNS_UNKNOWN_ERR;
         }
     }
@@ -619,7 +649,7 @@ BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstListPPtr)
 
     if(NULL == pstListPPtr || NULL == pstListPPtr->pstList)
     {
-        __LOG_ERROR("The list is not init, ptr = %p", pstListPPtr);
+        ISNS_ERROR("The list is not init, ptr = %p", pstListPPtr);
         return BOOL_FALSE;
     }
 
@@ -627,13 +657,13 @@ BOOL_T ISNS_MEM_List_IsInit(IN const ISNS_LIST *pstListPPtr)
     if(pstList->list_id <= DATA_LIST_INVALID || pstList->list_id >= DATA_LIST_MAX ||
        NULL == pstList->stHead.stHead.pstNext || NULL == pstList->stHead.stHead.pstPrev)
     {
-        __LOG_ERROR("The list is not init, list type = %u", pstList->list_id);
+        ISNS_ERROR("The list is not init, list type = %u", pstList->list_id);
         return BOOL_FALSE;
     }
 
     if(pstList->uiVersion % ISNS_MEM_LIST_VER_STEP != ISNS_MEM_LIST_VER_INIT)
     {
-        __LOG_ERROR("Invalid list version %u, list type = %u", pstList->uiVersion, pstList->list_id);
+        ISNS_ERROR("Invalid list version %llx, list type = %u", pstList->uiVersion, pstList->list_id);
         return BOOL_FALSE;
     }
 
@@ -670,7 +700,7 @@ INT ISNS_MEM_List_Init(IN INT iListId, IN VOID *pRecord)
     }
     else
     {
-        __LOG_ERROR("Init List: Unknown list type %d", iListId);
+        ISNS_ERROR("Init List: Unknown list type %d", iListId);
         return ISNS_UNKNOWN_ERR;
     }
 
@@ -725,7 +755,7 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstListPPtr, IN CHAR *pcData, IN INT iDa
 
     memset(pstNode, 0, sizeof(ISNS_LIST_NODE));
     pstNode->list_id = pstList->list_id;
-    pstNode->data = (char *)malloc(iDataSize + 1);
+    pstNode->data = malloc(iDataSize + 1);
     if(NULL == pstNode->data)
     {
         free(pstNode);
@@ -735,6 +765,7 @@ INT ISNS_MEM_List_AddNode(IN ISNS_LIST *pstListPPtr, IN CHAR *pcData, IN INT iDa
     memcpy(pstNode->data, pcData, iDataSize);
     ((CHAR *)pstNode->data)[iDataSize] = 0;
     pstNode->data_size = iDataSize;
+    pstNode->uiVersion = pstList->uiVersion;
     DTQ_AddTail(&pstList->stHead, &pstNode->stNode);
 
     return ( SUCCESS );
@@ -768,8 +799,7 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NODE *pstNo
     pstList->uiVersion += ISNS_MEM_LIST_VER_STEP;
 
     DTQ_Del(&pstNode->stNode);
-    free(pstNode->data);
-    free(pstNode);
+    _isns_FreeNodeData((VOID *)&pstNode->stNode);
 
     return ( SUCCESS );
 }
@@ -792,7 +822,6 @@ INT ISNS_MEM_List_RemoveNode(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NODE *pstNo
 INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstListPPtr)
 {
     ISNS_LIST_S *pstList;
-    ISNS_LIST_NODE *pstNode;
 
     if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr))
     {
@@ -801,13 +830,7 @@ INT ISNS_MEM_List_Delete(IN ISNS_LIST *pstListPPtr)
 
     pstList = pstListPPtr->pstList;
     pstList->uiVersion += ISNS_MEM_LIST_VER_STEP;
-
-    DTQ_FOREACH_ENTRY((&pstList->stHead), pstNode, stNode)
-    {
-        DTQ_Del(&pstNode->stNode);
-        free(pstNode->data);
-        free(pstNode);
-    }
+    DTQ_FreeAll(&pstList->stHead, _isns_FreeNodeData);
 
     return (SUCCESS);
 }
@@ -999,7 +1022,7 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NO
     {
         pstRet = DTQ_ENTRY_FIRST(&pstList->stHead, ISNS_LIST_NODE, stNode);
     }
-    else if(pstNode->uiVersionIter == pstList->uiVersion)
+    else if(pstNode->uiVersion == pstList->uiVersion)
     {
         pstRet = DTQ_ENTRY_NEXT(&pstList->stHead, pstNode, stNode); /* 大多数情况 */
     }
@@ -1014,10 +1037,10 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NO
 
     if(NULL != pstRet)
     {
-        pstRet->uiVersionIter = pstList->uiVersion;
+        pstRet->uiVersion = pstList->uiVersion;
         if(NULL != ppcData)
         {
-            *ppcData = pstRet->data;
+            *ppcData = (CHAR *)pstRet->data;
         }
         if(NULL != ppcData)
         {
@@ -1028,6 +1051,71 @@ ISNS_LIST_NODE *ISNS_MEM_List_GetNext(IN ISNS_LIST *pstListPPtr, IN ISNS_LIST_NO
     return pstRet;
 }
 
+/*********************************************************************
+     Func Name : ISNS_MEM_List_GetNext
+  Date Created : 2016/10/26
+        Author : liangjinchao@dian
+   Description : 获取下一个节点及数据，不存在返回NULL *piSize可以为NULL
+         Input : IN ISNS_LIST *pstList, IN ISNS_LIST_NODE *pstNode
+        Output : OUT CHAR *ppcData, OUT INT *piSize
+        Return : 下一个节点
+       Caution : 如果遍历次数为零则外部的ISNS_LIST_NODE *仍为NULL
+----------------------------------------------------------------------
+ Modification History
+    DATE        NAME             DESCRIPTION
+----------------------------------------------------------------------
+
+*********************************************************************/
+ULONG ISNS_MEM_List_NextData(IN ISNS_LIST *pstListPPtr, INOUT ISNS_LIST_NODE **ppstNode,
+                             INOUT VOID *pOutBuff, IN UINT uiBuffSize)
+{
+    ISNS_LIST_S *pstList;
+    ISNS_LIST_NODE *pstNode;
+
+    if(BOOL_FALSE == ISNS_MEM_List_IsInit(pstListPPtr) || NULL == ppstNode || NULL == pOutBuff)
+    {
+        return ERROR_FAILED;
+    }
+
+    pstList = pstListPPtr->pstList;
+    pstNode = *ppstNode;
+
+    if(ISNS_INVALID_PTR_NOTEXIST == (VOID *)pstNode || DTQ_IsEmpty(&pstList->stHead))
+    {
+        return ISNS_NO_SUCH_ENTRY_ERR;
+    }
+
+    if(NULL == pstNode)
+    {
+        pstNode = DTQ_ENTRY_FIRST(&pstList->stHead, ISNS_LIST_NODE, stNode);
+    }
+    else if(pstNode->uiVersion % ISNS_MEM_LIST_VER_STEP != ISNS_MEM_LIST_VER_INIT)
+    {
+        ISNS_ERROR("Invalid node version(%llx), list id = %d", pstNode->uiVersion, pstList->list_id);
+        return ERROR_FAILED;                /* 下一个节点已被删除或数据遭到意外破坏，无法继续 */
+    }
+
+    if(uiBuffSize < pstNode->data_size)
+    {
+        ISNS_ERROR("GetNextData: actual %u < %u require bytes", uiBuffSize, pstNode->data_size);
+        return ERROR_FAILED;
+    }
+    memcpy(pOutBuff, pstNode->data, pstNode->data_size);         /* 拷贝数据，并把多余空间置0 */
+    memset((CHAR *)pOutBuff + pstNode->data_size, 0, uiBuffSize - pstNode->data_size);
+
+    pstNode = DTQ_ENTRY_NEXT(&pstList->stHead, pstNode, stNode);   /* 取下一节点 */
+    if(NULL == pstNode)
+    {
+        pstNode = (ISNS_LIST_NODE *)ISNS_INVALID_PTR_NOTEXIST;
+    }
+    else
+    {
+        pstNode->uiVersion = pstList->uiVersion;       /* 用来下次进入时判断该节点是否删除 */
+    }
+
+    *ppstNode = pstNode;
+    return ERROR_SUCCESS;
+}
 
 
 

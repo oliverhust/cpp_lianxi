@@ -99,7 +99,7 @@ RemoveNode(ISNS_LIST *pstListPPtr, ISNS_LIST_NODE *pstNode)
     pParent = ISNS_MEM_List_GetParent(pstListPPtr);
 
     /* 删除操作先从LDAP/DBM开始 */
-    iRet |= ISNS_LDAP_List_RemoveNode(pstListPPtr->pstList->list_id, pParent, pstNode->data, pstNode->data_size);
+    iRet |= ISNS_LDAP_List_RemoveNode(pstListPPtr->pstList->list_id, pParent, (CHAR *)pstNode->data, pstNode->data_size);
 
     iRet |= ISNS_MEM_List_RemoveNode(pstListPPtr, pstNode);
 
@@ -171,33 +171,15 @@ Returns the next node AND DATA in a list.
 eg:  ISNS_LIST_NODE *pstNode = NULL;  //必须初始化为NULL
      SOIP_Dd_Member stMember;
      SOIP_Dd dd = xxx;
-     while(SUCCESS == GetNextData(&dd->member_list, &pstNode, &stMember, sizeof(stMember)))
+     while(SUCCESS == GetNextData(&dd->member_list, &pstNode, (VOID*)&stMember, sizeof(stMember)))
      {
         xxxxxx (这里面使用取到的stMember)
      }
 ********************************************************************/
 ULONG
 GetNextData(IN ISNS_LIST *pstListPPtr, INOUT ISNS_LIST_NODE **ppstNode,
-            OUT CHAR *pcOutBuff, IN UINT uiBuffSize)
+            INOUT VOID *pOutBuff, IN UINT uiBuffSize)
 {
-    ISNS_LIST_NODE *pstNext;
-    const CHAR *pcTmpData = NULL;
-    INT iSize = 0;
-
-    pstNext = ISNS_MEM_List_GetNext(pstListPPtr, *ppstNode, &pcTmpData, &iSize);
-    if(NULL == pstNext)
-    {
-        return ISNS_NO_SUCH_ENTRY_ERR;  /* 遍历到最后一个了 */
-    }
-    if((UINT)iSize > uiBuffSize)
-    {
-        return ISNS_UNKNOWN_ERR;
-    }
-
-    memcpy(pcOutBuff, pcTmpData, iSize);
-    memset(pcOutBuff + iSize, 0, uiBuffSize - (UINT)iSize);
-    *ppstNode = pstNext;
-
-    return SUCCESS;
+    return ISNS_MEM_List_NextData(pstListPPtr, ppstNode, pOutBuff, uiBuffSize);
 }
 

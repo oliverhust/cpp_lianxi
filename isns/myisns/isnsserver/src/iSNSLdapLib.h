@@ -42,7 +42,7 @@
 #define ISNS_LDAP_DN_MAX_SIZE               1024
 
 /* 启动时尝试连接的次数与时间间隔 */
-#define ISNS_LDAP_INIT_TRY_MAX              64
+#define ISNS_LDAP_INIT_TRY_MAX              (1e2)
 #define ISNS_LDAP_INIT_TRY_INTERVAL         2
 
 #define ISNS_LDAP_OBJCLASS                  "objectClass"
@@ -85,15 +85,19 @@ VOID ISNS_LDAP_ServerFini(VOID);
 
 BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr);
 
-ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
+INT ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
 
-ULONG ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
+INT ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
 
 ULONG ISNS_LDAP_ReplaceEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs);
 
+ULONG ISNS_LDAP_SingleReplace(IN const CHAR *pcDn,
+                              IN const CHAR *const *ppcNameList,
+                              IN const CHAR *const *ppcValueList);
+
 ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn);
 
-ULONG ISNS_LDAP_SearchEntry(
+INT ISNS_LDAP_SearchEntry(
     IN const CHAR *pcBase,
     IN INT iScope,
     IN const CHAR *pcFilter,

@@ -32,8 +32,13 @@
 //#include <ldap.h>
 
 #include "iSNStypes.h"
+#include "iSNSList.h"
+#include "iSNSmsg.h"
+#include "iSNSdebug.h"
 #include "iSNSdbLdap.h"
 #include "iSNSLdapLib.h"
+
+#define ISNS_LDAP_INNER_ERR             0x1000
 
 STATIC LDAP *g_pstLDAP = NULL;
 STATIC ISNS_LDAP_INIT_S g_stInitData = { 0 };
@@ -50,7 +55,7 @@ STATIC ISNS_LDAP_INIT_S g_stInitData = { 0 };
                INT iModOp
        Output:
        Return: 成功/失败
-      Caution:
+      Caution: pcAttrValue不能为NULL
 ------------------------------------------------------------------------------
   Modification History
   DATE        NAME             DESCRIPTION
@@ -109,6 +114,52 @@ STATIC ULONG _ldap_ModStringAttr(IN const CHAR *pcAttrName,
 }
 
 /*****************************************************************************
+    Func Name: _ldap_ModDelAttr
+ Date Created: 2016/11/18
+       Author: liangjinchao@dians
+  Description: 删除属性
+        Input: LDAPMod **pstAttr,
+               const char *pcAttrName
+       Output:
+       Return: 成功/失败
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+STATIC ULONG _ldap_ModDelAttr(IN const CHAR *pcAttrName, OUT LDAPMod **ppstAttr)
+{
+    LDAPMod  *pstMod;
+    CHAR *pcAttrNameTmp;
+
+    *ppstAttr = NULL;
+    pstMod = malloc(sizeof(LDAPMod));
+    if(NULL == pstMod)
+    {
+        return ERROR_FAILED;
+    }
+
+    pcAttrNameTmp = strdup(pcAttrName);
+    if(NULL == pcAttrNameTmp)
+    {
+        free(pstMod);
+        return ERROR_FAILED;
+    }
+
+    memset(pstMod, 0, sizeof(LDAPMod));
+    pstMod->mod_op = LDAP_MOD_REPLACE;
+    pstMod->mod_values = NULL;
+    pstMod->mod_type = pcAttrNameTmp;
+
+    *ppstAttr = pstMod;
+
+    return ERROR_SUCCESS;
+
+}
+
+/*****************************************************************************
     Func Name: _ldap_FreeModStrings
  Date Created: 2016/11/3
        Author: liangjinchao@dian
@@ -123,7 +174,7 @@ STATIC ULONG _ldap_ModStringAttr(IN const CHAR *pcAttrName,
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-STATIC VOID _ldap_FreeModStrings(CHAR ***pppcStrings)
+STATIC VOID _ldap_FreeModStrings(IN CHAR ***pppcStrings)
 {
     CHAR **ppStrings = *pppcStrings;
     INT i;
@@ -158,7 +209,7 @@ STATIC VOID _ldap_FreeModStrings(CHAR ***pppcStrings)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-STATIC VOID _ldap_FreeModBvalues(struct berval ***pppstData)
+STATIC VOID _ldap_FreeModBvalues(IN struct berval ***pppstData)
 {
     struct berval **ppstData = *pppstData;
     INT i;
@@ -184,6 +235,46 @@ STATIC VOID _ldap_FreeModBvalues(struct berval ***pppstData)
     *pppstData = NULL;
 
     return;
+}
+
+/*****************************************************************************
+    Func Name: _ldap_FreeMod
+ Date Created: 2016/11/3
+       Author: liangjinchao@dian
+  Description: MOD内存释放
+        Input: IN LDAPMod **ppstAttrs
+       Output:
+       Return: 无
+      Caution: 自行确保*ppstAttrs不为NULL
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+STATIC VOID _ldap_FreeMod(IN LDAPMod **ppstAttrs)
+{
+    LDAPMod *pstAttr = *ppstAttrs;
+
+    if(NULL != pstAttr->mod_type)
+    {
+        free(pstAttr->mod_type);
+        pstAttr->mod_type = NULL;
+    }
+
+    if(LDAP_MOD_BVALUES & pstAttr->mod_op)
+    {
+        _ldap_FreeModBvalues(&pstAttr->mod_bvalues);
+    }
+    else
+    {
+        _ldap_FreeModStrings(&pstAttr->mod_values);
+    }
+
+    free(pstAttr);
+    *ppstAttrs = NULL;
+
+    return ;
 }
 
 /*****************************************************************************
@@ -303,6 +394,7 @@ STATIC INLINE ULONG _ldap_CheckLdapInit()
 {
     if(NULL == g_pstLDAP || NULL == g_stInitData.pcBase)
     {
+        ISNS_ERROR("Ldap is not init or configure.");
         return ERROR_FAILED;
     }
 
@@ -325,34 +417,32 @@ STATIC INLINE ULONG _ldap_CheckLdapInit()
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-STATIC BOOL_T _ldap_IsDnExist(IN LDAP *pstLd, IN const CHAR *pcDN, OUT ULONG *pulErr)
+STATIC BOOL_T _ldap_IsDnExist(IN LDAP *pstLd, IN const CHAR *pcDN, OUT INT *piErr)
 {
-    ULONG ulRet;
+    INT iRet;
     LDAPMessage *pstRes;
     BOOL_T bRet;
 
-    ulRet = ldap_search_s(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes);
+    iRet = ldap_search_s(pstLd, pcDN, LDAP_SCOPE_BASE, NULL, NULL, 0, &pstRes);
     ldap_msgfree(pstRes);
 
-    if(LDAP_SUCCESS == ulRet)
+    if(LDAP_SUCCESS == iRet)
     {
         bRet = BOOL_TRUE;
-        ulRet = ERROR_SUCCESS;
     }
-    else if(LDAP_NO_SUCH_OBJECT == ulRet)
+    else if(LDAP_NO_SUCH_OBJECT == iRet)
     {
         bRet = BOOL_FALSE;
-        ulRet = ERROR_SUCCESS;
+        iRet = LDAP_SUCCESS;
     }
     else
     {
         bRet = BOOL_FALSE;
-        ulRet = ERROR_FAILED;
     }
 
-    if(NULL != pulErr)
+    if(NULL != piErr)
     {
-        *pulErr = ulRet;
+        *piErr = iRet;
     }
 
     return bRet;
@@ -375,43 +465,52 @@ STATIC BOOL_T _ldap_IsDnExist(IN LDAP *pstLd, IN const CHAR *pcDN, OUT ULONG *pu
 *****************************************************************************/
 STATIC ULONG _ldap_ConnectServer()
 {
-    ULONG   ulRet;
-    INT   iProtocolVersion, i;
+    INT iErr;
+    INT iProtocolVersion, i;
 
     if(NULL == g_stInitData.pcAdminDn || NULL == g_stInitData.pcBase ||
        NULL == g_stInitData.pcLdapUrl ||  NULL == g_stInitData.pcPassword)
     {
+        ISNS_ERROR("The ldap setings is not config");
         return ERROR_FAILED;
     }
 
-    ulRet = ldap_initialize(&g_pstLDAP, g_stInitData.pcLdapUrl);
-    if (ERROR_SUCCESS != ulRet)
+    iErr = ldap_initialize(&g_pstLDAP, g_stInitData.pcLdapUrl);
+    if (LDAP_SUCCESS != iErr)
     {
-        return ulRet;
+        ISNS_ERROR("Ldap initialize error(%d): %s", iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
     }
 
     iProtocolVersion = LDAP_VERSION3;
-    ulRet = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
-    if (ERROR_SUCCESS != ulRet)
+    iErr = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
+    if (LDAP_SUCCESS != iErr)
     {
-        return ulRet;
+        ISNS_ERROR("Ldap set option error(%d): %s", iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
     }
 
-    ulRet = ERROR_FAILED;
     for(i = 0; i < ISNS_LDAP_INIT_TRY_MAX; i++)
     {
-        if (ERROR_SUCCESS == ldap_simple_bind_s(g_pstLDAP, g_stInitData.pcAdminDn, g_stInitData.pcPassword))
+        iErr = ldap_simple_bind_s(g_pstLDAP, g_stInitData.pcAdminDn, g_stInitData.pcPassword);
+        if (LDAP_SUCCESS == iErr)
         {
             if(BOOL_TRUE == _ldap_IsDnExist(g_pstLDAP, g_stInitData.pcBase, NULL))
             {
-                ulRet = ERROR_SUCCESS;
                 break;
             }
         }
+        iErr = ISNS_LDAP_INNER_ERR;
         sleep(ISNS_LDAP_INIT_TRY_INTERVAL);
     }
 
-    return ulRet;
+    if(LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap connect server(%s) error(%d): %s", g_stInitData.pcLdapUrl, iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
+    }
+
+    return ERROR_SUCCESS;
 }
 
 /*****************************************************************************
@@ -432,8 +531,8 @@ STATIC ULONG _ldap_ConnectServer()
 *****************************************************************************/
 STATIC ULONG _ldap_Reconnect()
 {
-    ULONG   ulRet;
-    INT   iProtocolVersion;
+    INT iErr;
+    INT iProtocolVersion;
 
     if(NULL == g_stInitData.pcAdminDn || NULL == g_stInitData.pcBase ||
        NULL == g_stInitData.pcLdapUrl ||  NULL == g_stInitData.pcPassword)
@@ -447,31 +546,35 @@ STATIC ULONG _ldap_Reconnect()
         g_pstLDAP = NULL;
     }
 
-    ulRet = ldap_initialize(&g_pstLDAP, g_stInitData.pcLdapUrl);
-    if (ERROR_SUCCESS != ulRet)
+    iErr = ldap_initialize(&g_pstLDAP, g_stInitData.pcLdapUrl);
+    if (LDAP_SUCCESS != iErr)
     {
-        return ulRet;
-    }
-
-    iProtocolVersion = LDAP_VERSION3;
-    ulRet = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
-    if (ERROR_SUCCESS != ulRet)
-    {
-        return ulRet;
-    }
-
-    ulRet = ldap_simple_bind_s(g_pstLDAP, g_stInitData.pcAdminDn, g_stInitData.pcPassword);
-    if (ERROR_SUCCESS != ulRet)
-    {
-        return ulRet;
-    }
-
-    if(BOOL_TRUE != _ldap_IsDnExist(g_pstLDAP, g_stInitData.pcBase, NULL))
-    {
+        ISNS_ERROR("Ldap ReInitialize error(%d): %s", iErr, ldap_err2string(iErr));
         return ERROR_FAILED;
     }
 
-    return ulRet;
+    iProtocolVersion = LDAP_VERSION3;
+    iErr = ldap_set_option(g_pstLDAP, LDAP_OPT_PROTOCOL_VERSION, &iProtocolVersion);
+    if (LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap reconnect set option error(%d): %s", iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
+    }
+
+    iErr = ldap_simple_bind_s(g_pstLDAP, g_stInitData.pcAdminDn, g_stInitData.pcPassword);
+    if (LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap reconnect bind error(%d): %s", iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
+    }
+
+    if(BOOL_TRUE != _ldap_IsDnExist(g_pstLDAP, g_stInitData.pcBase, &iErr))
+    {
+        ISNS_ERROR("Ldap reconnect IsDnExist error(%d): %s", iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
+    }
+
+    return ERROR_SUCCESS;
 }
 
 /*****************************************************************************
@@ -491,21 +594,28 @@ STATIC ULONG _ldap_Reconnect()
 *****************************************************************************/
 STATIC ULONG _ldap_Mkdir(const CHAR *pcDirName)
 {
-    ULONG ulRet;
     CHAR szDn[ISNS_LDAP_DN_MAX_SIZE];
     const CHAR *apcName[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 }, *apcValue[ISNS_LDAP_ATTR_MAX_SIZE] = { 0 };
     LDAPMod **ppstMod;
+    ULONG ulRet = ERROR_SUCCESS;
+    INT iErr;
 
     scnprintf(szDn, sizeof(szDn), ISNS_LDAP_OBJ_OU"=%s,%s", pcDirName, g_stInitData.pcBase);
 
-    /* 如果已存在或出错则直接返回 */
-    if(BOOL_TRUE == _ldap_IsDnExist(g_pstLDAP, szDn, &ulRet) || ERROR_SUCCESS != ulRet)
+    if(BOOL_TRUE == _ldap_IsDnExist(g_pstLDAP, szDn, &iErr))
     {
-        return ulRet;
+        return ulRet;  /* 如果已存在则直接返回成功 */
+    }
+    else if(LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap mkdir check(%s) exist error(%d): %s", pcDirName, iErr, ldap_err2string(iErr));
+        return ERROR_FAILED;
     }
 
-    apcName[0] = ISNS_LDAP_OBJCLASS,            apcValue[0] = ISNS_LDAP_OU_OBJCLASS;
-    apcName[1] = ISNS_LDAP_OBJ_OU,              apcValue[1] = pcDirName;
+    apcName[0] = ISNS_LDAP_OBJCLASS;
+    apcName[1] = ISNS_LDAP_OBJ_OU;
+    apcValue[0] = ISNS_LDAP_OU_OBJCLASS;
+    apcValue[1] = pcDirName;
 
     ppstMod = ISNS_LDAP_NewSingleAttrs(apcName, apcValue);
     if(NULL == ppstMod)
@@ -513,7 +623,13 @@ STATIC ULONG _ldap_Mkdir(const CHAR *pcDirName)
         return ERROR_FAILED;
     }
 
-    ulRet = ldap_add_s(g_pstLDAP, szDn, ppstMod);
+    iErr = ldap_add_s(g_pstLDAP, szDn, ppstMod);
+    if(LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap mkdir (%s) error(%d): %s", pcDirName, iErr, ldap_err2string(iErr));
+        ulRet = ERROR_FAILED;
+    }
+
     ISNS_LDAP_FreeAttrs(&ppstMod);
 
     return ulRet;
@@ -611,6 +727,43 @@ STATIC ULONG _ldap_FillValuesList(IN LDAPMessage *pstEntry, IN const CHAR *const
 }
 
 /*****************************************************************************
+    Func Name: _ldap_RmEmptyAttr
+ Date Created: 2016/11/3
+       Author: liangjinchao@dian
+  Description: 删除空值属性
+        Input: IN LDAPMod **ppstAttrs
+       Output:
+       Return: 无
+      Caution:
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+STATIC VOID _ldap_RmEmptyAttr(IN LDAPMod **ppstAttrs)
+{
+    INT i, iValid = 0;
+
+    for(i = 0; i < ISNS_LDAP_ATTR_MAX_SIZE && NULL != ppstAttrs[i]; i++)
+    {
+        if(NULL != ppstAttrs[i]->mod_values)
+        {
+            ppstAttrs[iValid] = ppstAttrs[i];
+            iValid++;
+        }
+        else
+        {
+            _ldap_FreeMod(&ppstAttrs[i]);
+        }
+    }
+
+    ppstAttrs[iValid] = NULL;
+
+    return ;
+}
+
+/*****************************************************************************
     Func Name: ISNS_LDAP_Num2BitStr
  Date Created: 2016/11/3
        Author: liangjinchao@dian
@@ -678,6 +831,7 @@ CHAR *ISNS_LDAP_EscapeRdn(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue)
     LDAPAVA *astRdn[] = { &stAva, NULL };
     CHAR *pcName, *pcValue;
     char *pcRdn;
+    INT iErr;
 
     pcName = strdup(pcAttrName);
     if(NULL == pcName)
@@ -698,10 +852,12 @@ CHAR *ISNS_LDAP_EscapeRdn(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue)
     stAva.la_value.bv_len = strlen(pcValue);
     stAva.la_flags = LDAP_AVA_STRING;
 
-    if(0 !=  ldap_rdn2str((LDAPRDN)&astRdn, &pcRdn, LDAP_DN_FORMAT_LDAPV2))
+    iErr = ldap_rdn2str((LDAPRDN)&astRdn, &pcRdn, LDAP_DN_FORMAT_LDAPV2);
+    if(0 != iErr)
     {
         free(pcName);
         free(pcValue);
+        ISNS_ERROR("Ldap escape error(%d): %s, Attr(%s) Value(%s)", iErr, ldap_err2string(iErr), pcAttrName, pcAttrValue);
         return NULL;
     }
 
@@ -721,7 +877,7 @@ CHAR *ISNS_LDAP_EscapeRdn(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue)
                INT iModOp
        Output:
        Return: 成功/失败
-      Caution:
+      Caution: pcAttrValue不能为NULL，但可以为""
 ------------------------------------------------------------------------------
   Modification History
   DATE        NAME             DESCRIPTION
@@ -730,7 +886,18 @@ CHAR *ISNS_LDAP_EscapeRdn(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue)
 *****************************************************************************/
 ULONG ISNS_LDAP_SetStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue, OUT LDAPMod **ppstAttr)
 {
-    return _ldap_ModStringAttr(pcAttrName, pcAttrValue, LDAP_MOD_REPLACE, ppstAttr);
+    ULONG ulRet;
+
+    if(pcAttrValue[0] != '\0')
+    {
+        ulRet = _ldap_ModStringAttr(pcAttrName, pcAttrValue, LDAP_MOD_REPLACE, ppstAttr);
+    }
+    else
+    {
+        ulRet = _ldap_ModDelAttr(pcAttrName, ppstAttr);
+    }
+
+    return ulRet;
 }
 
 /*****************************************************************************
@@ -743,7 +910,7 @@ ULONG ISNS_LDAP_SetStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrVa
                const char *pcAttrName
        Output:
        Return: 成功/失败
-      Caution:
+      Caution: pcAttrValue不为NULL
 ------------------------------------------------------------------------------
   Modification History
   DATE        NAME             DESCRIPTION
@@ -765,7 +932,7 @@ ULONG ISNS_LDAP_AddStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrVa
                OUT LDAPMod **ppstAttr
        Output:
        Return: 成功/失败
-      Caution:
+      Caution: pcAttrValue为NULL则删除全部值
 ------------------------------------------------------------------------------
   Modification History
   DATE        NAME             DESCRIPTION
@@ -774,7 +941,18 @@ ULONG ISNS_LDAP_AddStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrVa
 *****************************************************************************/
 ULONG ISNS_LDAP_DelStringAttr(IN const CHAR *pcAttrName, IN const CHAR *pcAttrValue, OUT LDAPMod **ppstAttr)
 {
-    return _ldap_ModStringAttr(pcAttrName, pcAttrValue, LDAP_MOD_DELETE, ppstAttr);
+    ULONG ulRet;
+
+    if(NULL != pcAttrValue)
+    {
+        ulRet = _ldap_ModStringAttr(pcAttrName, pcAttrValue, LDAP_MOD_DELETE, ppstAttr);
+    }
+    else
+    {
+        ulRet = _ldap_ModDelAttr(pcAttrName, ppstAttr);
+    }
+
+    return ulRet;
 }
 
 /*****************************************************************************
@@ -926,7 +1104,7 @@ ULONG ISNS_LDAP_MultValueDelAll(IN const CHAR *pcDn, IN const CHAR *pcAttrName)
         return ERROR_FAILED;
     }
 
-    if(ERROR_SUCCESS != ISNS_LDAP_SetStringAttr(pcAttrName, "", ppstAttrs))
+    if(ERROR_SUCCESS != ISNS_LDAP_DelStringAttr(pcAttrName, NULL, ppstAttrs))
     {
         ISNS_LDAP_FreeAttrs(&ppstAttrs);
         return ERROR_FAILED;
@@ -943,9 +1121,9 @@ ULONG ISNS_LDAP_MultValueDelAll(IN const CHAR *pcDn, IN const CHAR *pcAttrName)
  Date Created: 2016/11/3
        Author: liangjinchao@dian
   Description: 申请ISNS_LDAP_ATTR_MAX_NUM + 1个指针的空间
-        Input: LDAPMod **ppstAttrs
+        Input:
        Output:
-       Return: 无
+       Return: LDAPMod **ppstAttrs
       Caution:
 ------------------------------------------------------------------------------
   Modification History
@@ -985,7 +1163,7 @@ LDAPMod **ISNS_LDAP_NewAttrs()
 *****************************************************************************/
 VOID ISNS_LDAP_FreeAttrs(IN LDAPMod ***pppstAttrs)
 {
-    LDAPMod *pstAttr, **ppstAttrs;
+    LDAPMod **ppstAttrs;
     INT iAttrNum;
 
     if(NULL == pppstAttrs)
@@ -1001,24 +1179,7 @@ VOID ISNS_LDAP_FreeAttrs(IN LDAPMod ***pppstAttrs)
 
     for(iAttrNum = 0; NULL != ppstAttrs[iAttrNum]; iAttrNum++)
     {
-        pstAttr = ppstAttrs[iAttrNum];
-        if(NULL != pstAttr->mod_type)
-        {
-            free(pstAttr->mod_type);
-            pstAttr->mod_type = NULL;
-        }
-
-        if(LDAP_MOD_BVALUES & pstAttr->mod_op)
-        {
-            _ldap_FreeModBvalues(&pstAttr->mod_bvalues);
-        }
-        else
-        {
-            _ldap_FreeModStrings(&pstAttr->mod_values);
-        }
-
-        free(pstAttr);
-        ppstAttrs[iAttrNum] = NULL;
+        _ldap_FreeMod(&ppstAttrs[iAttrNum]);
     }
 
     free(ppstAttrs);
@@ -1064,6 +1225,7 @@ ULONG ISNS_LDAP_ServerInit(IN const ISNS_LDAP_INIT_S *pstInit,
     /* 预先创建子目录 */
     if(ERROR_SUCCESS != _ldap_Mkdirs(ppcPreDirs))
     {
+        ISNS_ERROR("Ldap make pre-dirs failed");
         return ERROR_FAILED;
     }
 
@@ -1104,7 +1266,7 @@ VOID ISNS_LDAP_ServerFini()
         Input: IN const CHAR *pcDn, OUT ULONG *pulErr
        Output: 无
        Return: 无
-      Caution:
+      Caution: pulErr不能为NULL
 ------------------------------------------------------------------------------
   Modification History
   DATE        NAME             DESCRIPTION
@@ -1113,7 +1275,7 @@ VOID ISNS_LDAP_ServerFini()
 *****************************************************************************/
 BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr)
 {
-    ULONG ulRet;
+    INT iErr;
     BOOL_T bRet;
 
     if(ERROR_SUCCESS != _ldap_CheckLdapInit())
@@ -1123,8 +1285,8 @@ BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr)
     }
 
     /* 成功了直接返回，否则重连再试 */
-    bRet = _ldap_IsDnExist(g_pstLDAP, pcDn, &ulRet);
-    if(ERROR_SUCCESS == ulRet)
+    bRet = _ldap_IsDnExist(g_pstLDAP, pcDn, &iErr);
+    if(LDAP_SUCCESS == iErr)
     {
         *pulErr = ERROR_SUCCESS;
         return bRet;
@@ -1136,7 +1298,15 @@ BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr)
         return BOOL_FALSE;
     }
 
-    bRet = _ldap_IsDnExist(g_pstLDAP, pcDn, pulErr);
+    bRet = _ldap_IsDnExist(g_pstLDAP, pcDn, &iErr);
+    if(LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap IsDnExist error(%d): %s, DN(%s)", iErr, ldap_err2string(iErr), pcDn);
+        *pulErr = ERROR_FAILED;
+        return bRet;
+    }
+
+    *pulErr = ERROR_SUCCESS;
     return bRet;
 }
 
@@ -1155,9 +1325,9 @@ BOOL_T ISNS_LDAP_IsDnExist(IN const CHAR *pcDn, OUT ULONG *pulErr)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
+INT ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 {
-    ULONG ulRet;
+    INT iErr;
 
     if(ERROR_SUCCESS != _ldap_CheckLdapInit())
     {
@@ -1165,10 +1335,10 @@ ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
     }
 
     /* 成功了直接返回，否则重连再试 */
-    ulRet = (ULONG)ldap_add_s(g_pstLDAP, pcDn, ppstAttrs);
-    if(LDAP_SUCCESS == ulRet)
+    iErr = ldap_add_s(g_pstLDAP, pcDn, ppstAttrs);
+    if(LDAP_SUCCESS == iErr)
     {
-        return ulRet;
+        return iErr;
     }
 
     if(ERROR_SUCCESS != _ldap_Reconnect())
@@ -1176,7 +1346,7 @@ ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
         return ERROR_FAILED;
     }
 
-    return (ULONG)ldap_add_s(g_pstLDAP, pcDn, ppstAttrs);
+    return ldap_add_s(g_pstLDAP, pcDn, ppstAttrs);
 }
 
 /*****************************************************************************
@@ -1194,28 +1364,28 @@ ULONG ISNS_LDAP_AddEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-ULONG ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
+INT ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 {
-    ULONG ulRet;
+    INT iErr;
 
     if(ERROR_SUCCESS != _ldap_CheckLdapInit())
     {
-        return ERROR_FAILED;
+        return ISNS_LDAP_INNER_ERR;
     }
 
     /* 成功了直接返回，否则重连再试 */
-    ulRet = (ULONG)ldap_modify_s(g_pstLDAP, pcDn, ppstAttrs);
-    if(LDAP_SUCCESS == ulRet)
+    iErr = ldap_modify_s(g_pstLDAP, pcDn, ppstAttrs);
+    if(LDAP_SUCCESS == iErr)
     {
-        return ulRet;
+        return iErr;
     }
 
     if(ERROR_SUCCESS != _ldap_Reconnect())
     {
-        return ERROR_FAILED;
+        return ISNS_LDAP_INNER_ERR;
     }
 
-    return (ULONG)ldap_modify_s(g_pstLDAP, pcDn, ppstAttrs);
+    return ldap_modify_s(g_pstLDAP, pcDn, ppstAttrs);
 }
 
 /*****************************************************************************
@@ -1225,7 +1395,7 @@ ULONG ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
   Description: 覆盖条目中指定的属性，如果条目不存在则新建
         Input: IN const CHAR *pcDn, IN LDAPMod **ppstAttrs
        Output: 无
-       Return: 无
+       Return: 成功/失败
       Caution:
 ------------------------------------------------------------------------------
   Modification History
@@ -1236,6 +1406,7 @@ ULONG ISNS_LDAP_ModifyEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 ULONG ISNS_LDAP_ReplaceEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 {
     ULONG ulRet;
+    INT iErr;
     BOOL_T bIsExist;
 
     bIsExist = ISNS_LDAP_IsDnExist(pcDn, &ulRet);
@@ -1246,12 +1417,56 @@ ULONG ISNS_LDAP_ReplaceEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 
     if(BOOL_FALSE == bIsExist)
     {
-        ulRet = ISNS_LDAP_AddEntry(pcDn, ppstAttrs);
+        _ldap_RmEmptyAttr(ppstAttrs);      /* LDAP不允许新建条目时设置空值属性 */
+        iErr = ISNS_LDAP_AddEntry(pcDn, ppstAttrs);
     }
     else
     {
-        ulRet = ISNS_LDAP_ModifyEntry(pcDn, ppstAttrs);
+        iErr = ISNS_LDAP_ModifyEntry(pcDn, ppstAttrs);
     }
+
+    if(LDAP_SUCCESS != iErr)
+    {
+        ISNS_ERROR("Ldap replace entry error(%d): %s, IsExist(%d), DN(%s)",
+                         iErr, ldap_err2string(iErr), (INT)bIsExist, pcDn);
+        return ERROR_FAILED;
+    }
+
+    return ERROR_SUCCESS;
+}
+
+/*****************************************************************************
+    Func Name: ISNS_LDAP_SingleReplace
+ Date Created: 2016/11/3
+       Author: liangjinchao@dian
+  Description: 覆盖条目中指定的单值属性，如果条目不存在则新建
+        Input: IN const CHAR *pcDn,
+               IN const CHAR *const *ppcNameList,
+               IN const CHAR *const *ppcValueList
+       Output: 无
+       Return: 成功/失败
+      Caution: 某个Value为NULL表示不改动，为""表示置空
+------------------------------------------------------------------------------
+  Modification History
+  DATE        NAME             DESCRIPTION
+  --------------------------------------------------------------------------
+
+*****************************************************************************/
+ULONG ISNS_LDAP_SingleReplace(IN const CHAR *pcDn,
+                              IN const CHAR *const *ppcNameList,
+                              IN const CHAR *const *ppcValueList)
+{
+    ULONG ulRet;
+    LDAPMod **ppstAttrs;
+
+    ppstAttrs = ISNS_LDAP_NewSingleAttrs(ppcNameList, ppcValueList);
+    if(NULL == ppstAttrs)
+    {
+        return ERROR_FAILED;
+    }
+
+    ulRet = ISNS_LDAP_ReplaceEntry(pcDn, ppstAttrs);
+    ISNS_LDAP_FreeAttrs(&ppstAttrs);
 
     return ulRet;
 }
@@ -1273,7 +1488,8 @@ ULONG ISNS_LDAP_ReplaceEntry(IN const CHAR *pcDn, IN LDAPMod **ppstAttrs)
 *****************************************************************************/
 ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn)
 {
-    ULONG ulRet;
+    ULONG ulRet = ERROR_SUCCESS;
+    INT iErr;
 
     if(ERROR_SUCCESS != _ldap_CheckLdapInit())
     {
@@ -1281,10 +1497,9 @@ ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn)
     }
 
     /* 成功了直接返回，否则重连再试 */
-    ulRet = (ULONG)ldap_delete_s(g_pstLDAP, pcDn);
-    if(LDAP_SUCCESS == ulRet || LDAP_NO_SUCH_OBJECT == ulRet)
+    iErr = ldap_delete_s(g_pstLDAP, pcDn);
+    if(LDAP_SUCCESS == iErr || LDAP_NO_SUCH_OBJECT == iErr)
     {
-        ulRet = ERROR_SUCCESS;
         return ulRet;
     }
 
@@ -1293,11 +1508,13 @@ ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn)
         return ERROR_FAILED;
     }
 
-    ulRet = (ULONG)ldap_delete_s(g_pstLDAP, pcDn);
-    if(LDAP_SUCCESS == ulRet || LDAP_NO_SUCH_OBJECT == ulRet)
+    iErr = ldap_delete_s(g_pstLDAP, pcDn);
+    if(LDAP_SUCCESS != iErr && LDAP_NO_SUCH_OBJECT != iErr)
     {
-        ulRet = ERROR_SUCCESS;
+        ISNS_ERROR("Ldap delete error(%d): %s, DN(%s)", iErr, ldap_err2string(iErr), pcDn);
+        ulRet = ERROR_FAILED;
     }
+
     return ulRet;
 }
 
@@ -1321,7 +1538,7 @@ ULONG ISNS_LDAP_DelEntry(IN const CHAR *pcDn)
   --------------------------------------------------------------------------
 
 *****************************************************************************/
-ULONG ISNS_LDAP_SearchEntry(
+INT ISNS_LDAP_SearchEntry(
     IN const CHAR *pcBase,
     IN INT iScope,
     IN const CHAR *pcFilter,
@@ -1330,21 +1547,21 @@ ULONG ISNS_LDAP_SearchEntry(
     OUT LDAPMessage **ppstRes,
     OUT LDAP **ppstLdap)
 {
-    ULONG ulRet;
+    INT iErr;
 
     if(ERROR_SUCCESS != _ldap_CheckLdapInit())
     {
         return ERROR_FAILED;
     }
 
-    ulRet = ldap_search_s(g_pstLDAP, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
-    if(LDAP_NO_SUCH_OBJECT == ulRet || LDAP_SUCCESS == ulRet)
+    iErr = ldap_search_s(g_pstLDAP, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
+    if(LDAP_NO_SUCH_OBJECT == iErr || LDAP_SUCCESS == iErr)
     {
         if(NULL != ppstLdap)
         {
             *ppstLdap = g_pstLDAP;
         }
-        return ulRet;
+        return iErr;
     }
 
     if(ERROR_SUCCESS != _ldap_Reconnect())
@@ -1352,13 +1569,13 @@ ULONG ISNS_LDAP_SearchEntry(
         return ERROR_FAILED;
     }
 
-    ulRet = ldap_search_s(g_pstLDAP, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
+    iErr = ldap_search_s(g_pstLDAP, pcBase, iScope, pcFilter, ppcAttrs, iAttrsonly, ppstRes);
     if(NULL != ppstLdap)
     {
         *ppstLdap = g_pstLDAP;
     }
 
-    return ulRet;
+    return iErr;
 }
 
 /*****************************************************************************
@@ -1385,12 +1602,13 @@ ULONG ISNS_LDAP_ScanDir(IN const CHAR *pcDirDn, IN const CHAR *const *ppcNameLis
 {
     LDAPMessage *pstRes, *pstEntry;
     CHAR **appcValuesList[ISNS_LDAP_ATTR_MAX_SIZE];
-    ULONG ulRet;
+    INT iErr;
 
-    ulRet = ISNS_LDAP_SearchEntry(pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &pstRes, NULL);
-    if(LDAP_SUCCESS != ulRet)
+    iErr = ISNS_LDAP_SearchEntry(pcDirDn, LDAP_SCOPE_ONELEVEL, 0, 0, 0, &pstRes, NULL);
+    if(LDAP_SUCCESS != iErr)
     {
-        return ulRet;
+        ISNS_ERROR("Ldap scan dir search error(%d): %s, DN(%s)", iErr, ldap_err2string(iErr), pcDirDn);
+        return ERROR_FAILED;
     }
 
     for(pstEntry = ldap_first_entry(g_pstLDAP, pstRes); \

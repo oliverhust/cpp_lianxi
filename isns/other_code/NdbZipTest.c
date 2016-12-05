@@ -27,7 +27,7 @@ void fill_rand_str(char *pcData, int size)
 
     for(i=0; i<size; i++)
     {
-        pcData[i] = i * i % 256;
+        pcData[i] = rand() % 256;
     }
 }
 
@@ -138,10 +138,14 @@ void test_basic_zip()
 
 int main()
 {
-    test_basic_zip();
+	srand(time(NULL));
+
+	test_basic_zip();
+	/*
     test_compress_speed(1);
     test_compress_speed(4);
     test_compress_speed(10);
+	*/
     test_uncompress_speed(1);
     test_uncompress_speed(4);
     test_uncompress_speed(10);

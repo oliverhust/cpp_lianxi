@@ -513,10 +513,11 @@ ISNSdbRemoveAttrEntityEntry ( char *p_entity_id, ISNS_Attr * src_attr,
 
    /* Remove Portals */
    __DEBUG (isns_dereg_debug &1,Remove iportal_list);
+   PORTAL_LIST_ENTRY stPortList;
    pnode = NULL;
-   while ((pnode = GetNextNode(&p_entity->iportal_list, pnode)))
+   while (GetNextData(&p_entity->iportal_list, &pnode, &stPortList, sizeof(stPortList)) == SUCCESS)
    {
-      rval = SNSRemovePortalEntry (GetNodeData(pnode), NULL, p_rspmsg);
+      rval = SNSRemovePortalEntry ((SOIP_Portal_Key*)&stPortList, NULL, p_rspmsg);
    }
    DeleteList( &p_entity->iportal_list );
 
@@ -536,11 +537,12 @@ ISNSdbRemoveAttrEntityEntry ( char *p_entity_id, ISNS_Attr * src_attr,
    {
       /* Remove ISCSI Nodes */
       __DEBUG (isns_dereg_debug &1,Remove iscsi_node_list);
+      CHAR szIscName[MAX_ISCSI_NODE_ID_SIZE];
       pnode = NULL;
-      while ((pnode = GetNextNode(&p_entity->iscsi_node_list, pnode)))
+      while (GetNextData(&p_entity->iscsi_node_list, &pnode, szIscName, sizeof(szIscName)) == SUCCESS)
       {
             __DEBUG (isns_dereg_debug &1, Call SNSRemoveISCSINodeEntry);
-            rval = SNSRemoveISCSINodeEntry (GetNodeData(pnode), NULL, p_rspmsg);
+            rval = SNSRemoveISCSINodeEntry (szIscName, NULL, p_rspmsg);
             if (rval)
                break;
       }

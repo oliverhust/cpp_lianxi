@@ -155,7 +155,8 @@ char *ndb_compress(const char *pcInData, int iInSize, int *piOutSize)
 
 static char *_MallocUnzipSpace(const char *pcInData, int iInSize)
 {
-    int iSize = iInSize;
+	return malloc(2e8);
+	int iSize = iInSize;
     const char *pcPos = pcInData - 1, *pcEnd = pcInData + iInSize - 1;
 
     while(++pcPos <= pcEnd)
@@ -181,10 +182,11 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
     {
         return pcRet;
     }
-
+	memcpy(pcOut, pcInData, iInSize);
+	/*
     while(i < iInSize)
     {
-        if(NDB_SPECIAL_CHAR != pcInData[i])
+		if(NDB_SPECIAL_CHAR != pcInData[i])
         {
             *pcOut++ = pcInData[i++];
         }
@@ -200,7 +202,7 @@ char *ndb_decompress(const char *pcInData, int iInSize, int *piOutSize)
             i += 2;
         }
     }
-
+	*/
     *piOutSize = pcOut - pcRet;
     return pcRet;
 }
